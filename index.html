@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URUETA CRM | Dashboard</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Barra de navegación lateral -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="assets/logo.svg" alt="URUETA Logo" class="logo">
+                <h2>URUETA CRM</h2>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="nav-item active" data-screen="home">
+                        <a href="#home">
+                            <i class="fas fa-home"></i>
+                            <span>Inicio</span>
+                        </a>
+                    </li>
+                    <li class="nav-item" data-screen="prospects">
+                        <a href="#prospects">
+                            <i class="fas fa-user-plus"></i>
+                            <span>Prospectos</span>
+                        </a>
+                    </li>
+                    <li class="nav-item" data-screen="clients">
+                        <a href="#clients">
+                            <i class="fas fa-users"></i>
+                            <span>Clientes</span>
+                        </a>
+                    </li>
+                    <li class="nav-item" data-screen="records">
+                        <a href="#records">
+                            <i class="fas fa-clipboard-list"></i>
+                            <span>Expedientes</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <img src="assets/user-avatar.svg" alt="User Avatar" class="avatar">
+                    <div class="user-details">
+                        <h4>Usuario Admin</h4>
+                        <p>Administrador</p>
+                    </div>
+                </div>
+                <button class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Contenido principal -->
+        <main class="main-content">
+            <header class="main-header">
+                <div class="header-left">
+                    <button class="menu-toggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 id="screen-title">Dashboard</h1>
+                </div>
+                <div class="header-right">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Buscar...">
+                    </div>
+                    <button class="notification-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">3</span>
+                    </button>
+                </div>
+            </header>
+            
+            <div class="content-wrapper">
+                <!-- El contenido de cada sección se cargará aquí dinámicamente -->
+                <div id="screen-content"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
