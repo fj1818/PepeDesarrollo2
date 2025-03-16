@@ -10,6 +10,23 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+    <!-- Overlay de carga con spinner -->
+    <div class="overlay" id="loadingOverlay">
+        <div class="spinnerContainer">
+            <div class="spinner"></div>
+            <div class="loader">
+                <p>cargando</p>
+                <div class="words">
+                    <span class="word">prospectos</span>
+                    <span class="word">clientes</span>
+                    <span class="word">expedientes</span>
+                    <span class="word">datos</span>
+                    <span class="word">prospectos</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <!-- Barra de navegación lateral -->
         <aside class="sidebar">
@@ -48,13 +65,6 @@
             </nav>
             
             <div class="sidebar-footer">
-                <div class="user-info">
-                    <img src="assets/user-avatar.svg" alt="User Avatar" class="avatar">
-                    <div class="user-details">
-                        <h4>Usuario Admin</h4>
-                        <p>Administrador</p>
-                    </div>
-                </div>
                 <button class="logout-btn">
                     <i class="fas fa-sign-out-alt"></i>
                 </button>
@@ -71,10 +81,9 @@
                     <h1 id="screen-title">Dashboard</h1>
                 </div>
                 <div class="header-right">
-                    <div class="search-box">
-                        <i class="fas fa-search"></i>
-                        <input type="text" placeholder="Buscar...">
-                    </div>
+                    <button class="refresh-btn" id="refreshBtn">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
                     <button class="notification-btn">
                         <i class="fas fa-bell"></i>
                         <span class="notification-badge">3</span>
@@ -84,7 +93,13 @@
             
             <div class="content-wrapper">
                 <!-- El contenido de cada sección se cargará aquí dinámicamente -->
-                <div id="screen-content"></div>
+                <div id="screen-content">
+                    <div class="table-controls">
+                        <input type="text" id="searchInput" placeholder="Buscar...">
+                        <button class="btn btn-primary" id="saveBtn">Guardar</button>
+                        <button class="btn btn-primary" id="generateClientBtn">Generar Cliente</button>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
