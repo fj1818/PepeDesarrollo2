@@ -3,7 +3,9 @@ let datosAPI = null;
 let prospectosArray = []; // Declaración global de prospectosArray
 
 // Variable global para la URL de la API - ACTUALIZADA
-const API_URL = 'https://script.google.com/macros/s/AKfycbwfGB6ZTG0I3tff4o4z6LZG76eML2C4hXJaosGcD88tdfGRdi8YZ2GKpFFUk1V8H-Eb/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzgPrxGlctWVNokR1ydEwgJjVG2LmPSOs8vU59H2jG7iahKxxrl_zOfHGo43rNUS1gq0g/exec';
+// Si fuera necesario, se puede agregar un console.log para depurar las llamadas API
+console.log('API_URL actualizado a:', API_URL);
 
 // Variable global para rastrear los cambios
 let prospectosModificados = {}; 
@@ -2351,7 +2353,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Crear la nueva URL de la API
         const API_URL = "https://script.google.com/macros/s/AKfycbwfGB6ZTG0I3tff4o4z6LZG76eML2C4hXJaosGcD88tdfGRdi8YZ2GKpFFUk1V8H-Eb/exec";
 
-        // Obtener referencias a los elementos
+        // Obtener referencias a los elementos (declarar las variables solo una vez)
         const clienteNameFilter = document.getElementById('clienteNameFilter');
         const clienteNumFilter = document.getElementById('clienteNumFilter');
         const expedienteNumFilter = document.getElementById('expedienteNumFilter');
@@ -2497,69 +2499,46 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Función para insertar un expediente en la API
         async function insertExpediente(expedienteData) {
-            // Mostrar exactamente qué estamos enviando
-            const payload = {
-                action: 'insertexpediente',
-                data: {
-                    expediente: expedienteData
-                }
-            };
-            
-            console.log('Payload enviado al servidor:');
-            console.log('action:', payload.action);
-            console.log('data.expediente:', payload.data.expediente);
-            console.log('JSON completo:', JSON.stringify(payload));
-            
-            showToast('Intentando guardar expediente...');
-            
             try {
-                // Para manejar CORS en ambiente de desarrollo (localhost)
-                const isLocalhost = window.location.hostname === 'localhost' || 
-                                   window.location.hostname === '127.0.0.1';
+                // Mostrar overlay de carga
+                loadingOverlay.style.display = 'flex';
                 
-                if (isLocalhost) {
-                    console.log('Desarrollo local detectado - CORS bloqueará la petición');
-                    console.log('Simulando guardado local');
-                    
-                    // Simular retardo
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    
-                    // Actualizar estructura local
-                    if (!datosAPI.expedienteClientes) {
-                        datosAPI.expedienteClientes = {};
+                // Agregar timestamp para evitar caché
+                const uniqueParam = new Date().getTime();
+                const urlWithParams = `${API_URL}?timestamp=${uniqueParam}`;
+                
+                // Modificar el formato de datos para que coincida con lo que espera el servidor
+                const dataToSend = {
+                    action: 'insertexpediente',
+                    data: {
+                        expediente: expedienteData
                     }
-                    datosAPI.expedienteClientes[expedienteData['id-expediente']] = expedienteData;
-                    
-                    showToast('Expediente guardado localmente (simulado)');
-                    expedienteFormContainer.style.display = 'none';
-                    
-                    return true;
-                } else {
-                    // En producción, hacer petición real
-                    const response = await fetch(API_URL, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(payload)
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.result === 'success') {
-                        showToast('Expediente guardado correctamente');
-                        await fetchDatos();
-                        expedienteFormContainer.style.display = 'none';
-                    } else {
-                        throw new Error('Error al guardar: ' + (data.message || 'Error desconocido'));
-                    }
-                    
-                    return true;
-                }
+                };
+                
+                // Log para verificar los datos que se están enviando
+                console.log('Datos de expediente a insertar:', dataToSend);
+                
+                // Enviar datos
+                const response = await fetch(urlWithParams, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(dataToSend)
+                });
+
+                // Ocultar overlay de carga después de recibir la respuesta
+                loadingOverlay.style.display = 'none';
+
+                return { success: true };
             } catch (error) {
-                console.error('Error en insertExpediente:', error);
-                showToast('Error: ' + error.message);
-                return false;
+                console.error('Error al insertar expediente:', error);
+                
+                // Ocultar overlay de carga incluso si hay un error
+                loadingOverlay.style.display = 'none';
+                
+                throw error;
             }
         }
 
@@ -2735,6 +2714,58 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Guardar en la API
             insertExpediente(expedienteData);
+        });
+
+        // Función para actualizar las opciones de fecha basadas en el cliente seleccionado
+        function updateFechaOptions() {
+            const clienteNumero = clienteNumFilter.value;
+            const cliente = findClienteByNumero(clienteNumero);
+            
+            if (cliente) {
+                const expedientes = Object.values(datosAPI.expedienteClientes).filter(
+                    expediente => expediente['numero-cliente'] === clienteNumero
+                );
+                
+                const fechas = expedientes.map(expediente => expediente['fecha-registro']);
+                
+                showOptions(fechaRegistroFilter, fechaRegistroOptions, fechas, null, null, function(fecha) {
+                    fechaRegistroFilter.value = fecha;
+                    
+                    // Cambiar el botón a "Cargar Registros" si se selecciona una fecha
+                    if (fecha) {
+                        createExpedienteBtn.style.display = 'none';
+                        loadExpedienteBtn.style.display = 'inline-block';
+                    } else {
+                        createExpedienteBtn.style.display = 'inline-block';
+                        loadExpedienteBtn.style.display = 'none';
+                    }
+                });
+            } else {
+                fechaRegistroFilter.value = '';
+                fechaRegistroOptions.innerHTML = '';
+                createExpedienteBtn.style.display = 'inline-block';
+                loadExpedienteBtn.style.display = 'none';
+            }
+        }
+        
+        // Evento para actualizar las opciones de fecha cuando cambia el número de cliente
+        clienteNumFilter.addEventListener('input', updateFechaOptions);
+        
+        // Evento para cargar los valores del expediente seleccionado al hacer clic en "Cargar Registros"
+        loadExpedienteBtn.addEventListener('click', function() {
+            const clienteNumero = clienteNumFilter.value;
+            const fechaRegistro = fechaRegistroFilter.value;
+            
+            const expediente = Object.values(datosAPI.expedienteClientes).find(
+                expediente => 
+                    expediente['numero-cliente'] === clienteNumero &&
+                    expediente['fecha-registro'] === fechaRegistro
+            );
+            
+            if (expediente) {
+                fillExpedienteForm(expediente);
+                document.getElementById('expedienteFormContainer').style.display = 'block';
+            }
         });
     }
 
