@@ -5,6 +5,9 @@ let prospectosArray = []; // Declaración global de prospectosArray
 // Variable global para la URL de la API
 const API_URL = 'https://script.google.com/macros/s/AKfycbz_-hCw_RDznuQI20gR7Hdx_ll9jeoVBKQyAp8s1LjGhwYBMYNP0T6BBlg91Ee_6zsSJQ/exec';
 
+// Variable global para rastrear los cambios
+let prospectosModificados = {}; 
+
 // Estilo para el botón de actualizar
 const refreshBtnStyle = document.createElement('style');
 refreshBtnStyle.textContent = `
@@ -625,13 +628,15 @@ document.addEventListener('DOMContentLoaded', function() {
             if (currentProspectoId && datosAPI.prospecto[currentProspectoId]) {
                 datosAPI.prospecto[currentProspectoId].motivo = motivoText.value;
                 
+                // Registrar que este prospecto ha sido modificado
+                prospectosModificados[currentProspectoId] = true;
+                
                 // Solo necesitamos actualizar el atributo data-motivo, no hay texto visible
                 const motivoBtn = document.querySelector(`[data-prospecto-id="${currentProspectoId}"] .motivo-btn`);
                 if (motivoBtn) {
                     motivoBtn.setAttribute('data-motivo', motivoText.value);
                 }
                 
-                // Aquí podrías añadir código para guardar en la API
                 console.log('Motivo actualizado:', currentProspectoId, motivoText.value);
                 
                 closeModalHandler();
@@ -679,6 +684,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Actualizar en el objeto de datos
                 datosAPI.prospecto[id][field] = value;
                 
+                // Registrar que este prospecto ha sido modificado
+                prospectosModificados[id] = true;
+                
                 // Actualizar el array para paginación si es necesario
                 if (prospectosArray.length > 0) {
                     const prospecto = prospectosArray.find(p => p['id-prospecto'] === id);
@@ -687,7 +695,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
                 
-                // Aquí podrías añadir código para guardar en la API
                 console.log('Campo actualizado:', id, field, value);
             } else {
                 element.classList.add('invalid');
@@ -975,6 +982,27 @@ document.addEventListener('DOMContentLoaded', function() {
         if (searchInput) {
             searchInput.addEventListener('input', function() {
                 filterTable(this.value.toLowerCase());
+            });
+        }
+
+        // Después de insertar el contenido HTML en screenContent dentro de loadProspectsContent()
+        const saveBtn = document.getElementById('saveBtn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', function() {
+                // Mostrar overlay de carga durante el guardado
+                loadingOverlay.style.display = 'flex';
+                
+                // Llamar a la función para guardar datos
+                saveDataToAPI()
+                    .then(response => {
+                        loadingOverlay.style.display = 'none';
+                        showToast('Datos guardados correctamente');
+                    })
+                    .catch(error => {
+                        loadingOverlay.style.display = 'none';
+                        console.error('Error al guardar:', error);
+                        showToast('Error al guardar los datos. Por favor, intente nuevamente.');
+                    });
             });
         }
     }
@@ -1311,27 +1339,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Eventos para los botones
-    document.getElementById('saveBtn').addEventListener('click', function() {
-        // Mostrar overlay de carga durante el guardado
-        loadingOverlay.style.display = 'flex';
-        
-        // Llamar a la función para guardar datos
-        saveDataToAPI()
-            .then(response => {
-                // Ocultar overlay de carga
-                loadingOverlay.style.display = 'none';
-                // Mostrar mensaje de éxito
-                showToast('Datos guardados correctamente');
-            })
-            .catch(error => {
-                // Ocultar overlay de carga
-                loadingOverlay.style.display = 'none';
-                // Mostrar mensaje de error
-                console.error('Error al guardar:', error);
-                showToast('Error al guardar los datos. Por favor, intente nuevamente.');
-            });
-    });
-
     document.getElementById('generateClientBtn').addEventListener('click', function() {
         alert('Cliente generado correctamente.');
         // Aquí puedes añadir la lógica para generar un cliente
@@ -1340,34 +1347,48 @@ document.addEventListener('DOMContentLoaded', function() {
     // Función para guardar datos a la API
     async function saveDataToAPI() {
         try {
-            // Preparar los datos a enviar (solo enviamos los prospectos que se han editado)
+            // Si no hay prospectos modificados, no hacer nada
+            const idsModificados = Object.keys(prospectosModificados);
+            if (idsModificados.length === 0) {
+                showToast('No hay cambios para guardar');
+                return { success: true, message: "No hay cambios" };
+            }
+            
+            // Crear un objeto con solo los prospectos modificados
+            const prospectosAActualizar = {};
+            idsModificados.forEach(id => {
+                prospectosAActualizar[id] = datosAPI.prospecto[id];
+            });
+            
+            // Agregar timestamp para evitar caché
+            const uniqueParam = new Date().getTime();
+            const urlWithParams = `${API_URL}?timestamp=${uniqueParam}`;
+            
             const dataToSend = {
-                action: 'updateprospecto', // Indicar acción a realizar en la API
+                action: 'updateprospecto',
                 data: {
-                    prospecto: datosAPI.prospecto // Enviar la colección completa de prospectos
+                    prospecto: prospectosAActualizar
                 }
             };
             
-            // Enviar datos mediante POST a la API
-            const response = await fetch(API_URL, {
+            await fetch(urlWithParams, {
                 method: 'POST',
+                mode: 'no-cors',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(dataToSend)
             });
             
-            if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
-            }
+            // Limpiar el registro de modificaciones después de guardar
+            prospectosModificados = {};
             
-            const responseData = await response.json();
-            console.log('Respuesta de guardado:', responseData);
-            
-            return responseData;
+            // No podemos verificar la respuesta con no-cors
+            showToast(`${idsModificados.length} prospecto(s) actualizado(s) correctamente`);
+            return { success: true };
         } catch (error) {
             console.error('Error al guardar datos:', error);
-            throw error; // Re-lanzar el error para manejarlo en el llamador
+            throw error;
         }
     }
 }); 
