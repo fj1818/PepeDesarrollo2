@@ -1,5 +1,5 @@
 import React, { Component, useState, useCallback } from 'react';
-import { BrowserRouter as Router } from 'react-router-dom';
+import { HashRouter as Router } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import Prospects from './components/Prospects';
@@ -146,7 +146,7 @@ class App extends Component {
     } = this.state;
 
     return (
-      <Router basename="/mainreact">
+      <Router>
         <div className="app-container">
           <Sidebar 
             activeScreen={activeScreen} 
