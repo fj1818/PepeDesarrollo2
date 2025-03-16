@@ -2,11 +2,14 @@
 let datosAPI = null;
 let prospectosArray = []; // Declaración global de prospectosArray
 
-// Variable global para la URL de la API
-const API_URL = 'https://script.google.com/macros/s/AKfycbz1HF7H07xQAHgHCEwKy7eSkk0A44om3fliN3cOr0-a8RFBVVSDuaDrn-qCLdr3aNomRA/exec';
+// Variable global para la URL de la API - ACTUALIZADA
+const API_URL = 'https://script.google.com/macros/s/AKfycbyl4MKOjZI6gV7qAgbjU2_FabOO4jCL11oQy0CE4ayjS_IpSB7Vxf0E0Hrg1IHMhOhPqg/exec';
 
 // Variable global para rastrear los cambios
 let prospectosModificados = {}; 
+
+// Variable global para rastrear cambios en clientes
+let clientesModificados = {};
 
 // Estilo para el botón de actualizar
 const refreshBtnStyle = document.createElement('style');
@@ -135,6 +138,45 @@ clientModalStyle.textContent = `
     }
 `;
 document.head.appendChild(clientModalStyle);
+
+// Agregar estilos para el campo de búsqueda mejorado
+const searchFieldStyle = document.createElement('style');
+searchFieldStyle.textContent = `
+    .table-controls {
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+    }
+    
+    .search-container {
+        position: relative;
+        width: 300px;
+    }
+    
+    .search-container i {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #777;
+    }
+    
+    #searchClientInput {
+        width: 100%;
+        padding: 10px 10px 10px 40px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+        font-size: 14px;
+    }
+    
+    #searchClientInput:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.2);
+        outline: none;
+    }
+`;
+document.head.appendChild(searchFieldStyle);
 
 document.addEventListener('DOMContentLoaded', function() {
     // Referencias a elementos DOM
@@ -1281,7 +1323,19 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Cargar Clientes
+    // Estas funciones deberían estar en scope global, fuera de cualquier otra función
+
+    // Validación de teléfono (10 dígitos)
+    function validatePhone(phone) {
+        return /^\d{10}$/.test(phone);
+    }
+
+    // Validación de email
+    function validateEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    // Cargar Clientes con la estructura actualizada
     function loadClientsContent() {
         let clientesRows = '';
         
@@ -1291,31 +1345,55 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Generar filas de la tabla
             clientesArray.forEach(cliente => {
-                // Determinar estado
-                let estado = 'Activo';
-                let estadoClass = 'active';
-                
-                if (cliente.finalizado) {
-                    estado = 'Cerrado';
-                    estadoClass = 'inactive';
-                }
-                
-                // Formatear fecha
-                let fechaDesde = 'N/A';
+                // Formatear fecha de cliente
+                let fechaCliente = 'N/A';
                 if (cliente['fecha-cliente']) {
-                    const fecha = new Date(cliente['fecha-cliente']);
-                    fechaDesde = `${fecha.getDate()}/${fecha.getMonth() + 1}/${fecha.getFullYear()}`;
+                    try {
+                        // Verificar si la fecha ya está en formato DD/MM/YYYY o si es formato ISO
+                        if (cliente['fecha-cliente'].includes('T')) {
+                            // Es formato ISO, convertir a DD/MM/YYYY
+                            const fecha = new Date(cliente['fecha-cliente']);
+                            fechaCliente = `${fecha.getDate().toString().padStart(2, '0')}/${(fecha.getMonth()+1).toString().padStart(2, '0')}/${fecha.getFullYear()}`;
+                        } else if (cliente['fecha-cliente'].includes('/')) {
+                            // Ya está en formato DD/MM/YYYY, posiblemente con hora
+                            const fechaParts = cliente['fecha-cliente'].split(' ')[0].split('/');
+                            if (fechaParts.length === 3) {
+                                fechaCliente = `${fechaParts[0]}/${fechaParts[1]}/${fechaParts[2]}`;
+                            } else {
+                                fechaCliente = cliente['fecha-cliente'].split(' ')[0];
+                            }
+                        } else {
+                            fechaCliente = cliente['fecha-cliente'];
+                        }
+                    } catch (e) {
+                        console.error('Error al formatear fecha cliente:', e);
+                        fechaCliente = cliente['fecha-cliente'];
+                    }
                 }
                 
                 clientesRows += `
-                    <tr>
-                        <td>${cliente.nombre || 'Sin nombre'}</td>
-                        <td>${cliente.email || 'N/A'}<br>${cliente.telefono || 'N/A'}</td>
-                        <td>${cliente.canal || 'N/A'}</td>
-                        <td>${fechaDesde}</td>
-                        <td><span class="status ${estadoClass}">${estado}</span></td>
+                    <tr data-cliente-id="${cliente['id-contacto']}">
                         <td>
-                            <button class="action-btn" data-id="${cliente['id-contacto']}"><i class="fas fa-ellipsis-v"></i></button>
+                            <input type="text" class="editable-field cliente-field" style="min-width: 180px;" value="${cliente.nombre || ''}" data-field="nombre">
+                        </td>
+                        <td>
+                            <input type="tel" class="editable-field cliente-field" value="${cliente.telefono || ''}" data-field="telefono" maxlength="10" pattern="\\d{10}" inputmode="numeric">
+                        </td>
+                        <td>
+                            <input type="email" class="editable-field cliente-field" value="${cliente.email || ''}" data-field="email">
+                        </td>
+                        <td>${fechaCliente}</td>
+                        <td>${cliente['numero-cliente'] || 'N/A'}</td>
+                        <td>${cliente['numero-expediente'] || 'N/A'}</td>
+                        <td>
+                            <div class="checkbox-center">
+                                <input type="checkbox" class="custom-checkbox cliente-field" data-field="finalizado" ${cliente.finalizado === "true" ? 'checked' : ''}>
+                            </div>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-primary detalle-btn" data-id="${cliente['id-contacto']}">
+                                <i class="fas fa-info-circle"></i> Detalle
+                            </button>
                         </td>
                     </tr>
                 `;
@@ -1326,36 +1404,481 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!clientesRows) {
             clientesRows = `
                 <tr>
-                    <td colspan="6" style="text-align: center; padding: 30px;">No hay clientes registrados</td>
+                    <td colspan="8" style="text-align: center; padding: 30px;">No hay clientes registrados</td>
                 </tr>
             `;
         }
         
         screenContent.innerHTML = `
-            <div class="data-table">
+            <div class="table-controls">
+                <div class="search-container">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchClientInput" placeholder="Buscar cliente...">
+                </div>
+            </div>
+            <div class="data-table-container">
                 <div class="table-header">
                     <h3>Listado de Clientes</h3>
-                    <button class="btn btn-primary"><i class="fas fa-plus"></i> Nuevo Cliente</button>
                 </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Nombre</th>
-                            <th>Contacto</th>
-                            <th>Canal</th>
-                            <th>Desde</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${clientesRows}
-                    </tbody>
-                </table>
+                <div class="data-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Teléfono</th>
+                                <th>Email</th>
+                                <th>Fecha Cliente</th>
+                                <th>N° Cliente</th>
+                                <th>N° Expediente</th>
+                                <th>Finalizado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientesTableBody">
+                            ${clientesRows}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         `;
+        
+        // Asignar eventos a los campos editables
+        const editableFields = document.querySelectorAll('.cliente-field');
+        editableFields.forEach(field => {
+            field.addEventListener('change', function() {
+                const clienteId = this.closest('tr').getAttribute('data-cliente-id');
+                const fieldName = this.getAttribute('data-field');
+                let value = this.value;
+                
+                // Manejar checkboxes
+                if (this.type === 'checkbox') {
+                    value = this.checked ? "true" : "false";
+                    console.log(`Checkbox ${fieldName} cambiado a: ${value}`);
+                }
+                
+                // Validar según el tipo de campo
+                let isValid = true;
+                let errorMessage = '';
+                
+                switch(fieldName) {
+                    case 'telefono':
+                        isValid = validatePhone(value);
+                        errorMessage = 'Teléfono debe tener 10 dígitos';
+                        value = value.replace(/\D/g, ''); // Eliminar no-dígitos
+                        break;
+                    case 'email':
+                        isValid = validateEmail(value);
+                        errorMessage = 'Email no válido';
+                        break;
+                }
+                
+                // Eliminar mensajes de error anteriores
+                const existingError = this.parentNode.querySelector('.field-error');
+                if (existingError) existingError.remove();
+                
+                // Manejar estado de validación
+                if (isValid) {
+                    this.classList.remove('invalid');
+                    
+                    // Actualizar en el objeto de datos
+                    if (datosAPI.contactosClientes[clienteId]) {
+                        datosAPI.contactosClientes[clienteId][fieldName] = value;
+                        
+                        // Registrar que este cliente ha sido modificado
+                        clientesModificados[clienteId] = true;
+                        
+                        console.log('Cliente campo actualizado:', clienteId, fieldName, value);
+                    }
+                } else {
+                    this.classList.add('invalid');
+                    
+                    // Mostrar mensaje de error
+                    const errorElement = document.createElement('div');
+                    errorElement.className = 'field-error';
+                    errorElement.textContent = errorMessage;
+                    this.parentNode.appendChild(errorElement);
+                }
+            });
+        });
+        
+        // Asignar eventos a los botones de detalle
+        const detalleBtns = document.querySelectorAll('.detalle-btn');
+        detalleBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const clienteId = this.getAttribute('data-id');
+                if (clienteId && datosAPI.contactosClientes[clienteId]) {
+                    mostrarDetalleCliente(datosAPI.contactosClientes[clienteId]);
+                } else {
+                    showToast('Error al cargar detalles del cliente.');
+                }
+            });
+        });
+        
+        // Agregar funcionalidad de búsqueda
+        const searchClientInput = document.getElementById('searchClientInput');
+        if (searchClientInput) {
+            searchClientInput.addEventListener('input', function() {
+                filterClientesTable(this.value.toLowerCase());
+            });
+        }
     }
-    
+
+    // Función para mostrar el modal con los detalles del cliente (editable)
+    function mostrarDetalleCliente(cliente) {
+        // Eliminar modal anterior si existe
+        const prevModal = document.getElementById('detalleClienteModal');
+        if (prevModal) {
+            prevModal.remove();
+        }
+        
+        // Formatear fechas para mejor visualización
+        let fechaNacimiento = cliente['fecha-nacimiento'] || '';
+        // Convertir la fecha de nacimiento si está en formato ISO
+        if (fechaNacimiento.includes('T')) {
+            try {
+                const fecha = new Date(fechaNacimiento);
+                fechaNacimiento = `${fecha.getDate().toString().padStart(2, '0')}/${(fecha.getMonth()+1).toString().padStart(2, '0')}/${fecha.getFullYear()}`;
+            } catch (e) {
+                console.error('Error al formatear fecha nacimiento:', e);
+            }
+        }
+        
+        // Formatear otras fechas para visualización
+        let fechaProspecto = 'N/A';
+        if (cliente['fecha-prospecto']) {
+            try {
+                if (cliente['fecha-prospecto'].includes('T')) {
+                    const fecha = new Date(cliente['fecha-prospecto']);
+                    fechaProspecto = `${fecha.getDate().toString().padStart(2, '0')}/${(fecha.getMonth()+1).toString().padStart(2, '0')}/${fecha.getFullYear()}`;
+                } else {
+                    fechaProspecto = cliente['fecha-prospecto'].split(' ')[0];
+                }
+            } catch (e) {
+                fechaProspecto = cliente['fecha-prospecto'];
+            }
+        }
+        
+        let fechaCliente = 'N/A';
+        if (cliente['fecha-cliente']) {
+            try {
+                if (cliente['fecha-cliente'].includes('T')) {
+                    const fecha = new Date(cliente['fecha-cliente']);
+                    fechaCliente = `${fecha.getDate().toString().padStart(2, '0')}/${(fecha.getMonth()+1).toString().padStart(2, '0')}/${fecha.getFullYear()}`;
+                } else {
+                    fechaCliente = cliente['fecha-cliente'].split(' ')[0];
+                }
+            } catch (e) {
+                fechaCliente = cliente['fecha-cliente'];
+            }
+        }
+        
+        // Crear estructura del modal
+        const modalHTML = `
+            <div class="modal-overlay active" id="detalleClienteModal">
+                <div class="modal client-modal">
+                    <div class="modal-header">
+                        <h3>Detalles del Cliente</h3>
+                        <button class="modal-close" id="closeDetalleModal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body" style="max-height: 70vh; overflow-y: auto; padding-right: 10px;">
+                        <form id="detalleClienteForm">
+                            <input type="hidden" id="detalleClienteId" value="${cliente['id-contacto']}">
+                            
+                            <h4>Información Personal</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="detalle_nombre">Nombre:</label>
+                                    <input type="text" id="detalle_nombre" class="detalle-editable" data-field="nombre" value="${cliente.nombre || ''}">
+                                </div>
+                                <div class="form-group">
+                                    <label for="detalle_telefono">Teléfono:</label>
+                                    <input type="tel" id="detalle_telefono" class="detalle-editable" data-field="telefono" value="${cliente.telefono || ''}" 
+                                           maxlength="10" pattern="\\d{10}" inputmode="numeric" 
+                                           oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10)">
+                                    <div class="field-info">10 dígitos numéricos</div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="detalle_email">Email:</label>
+                                    <input type="email" id="detalle_email" class="detalle-editable" data-field="email" value="${cliente.email || ''}">
+                                    <div class="field-info">Formato: ejemplo@dominio.com</div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="detalle_fecha_nacimiento">Fecha de Nacimiento (DD/MM/YYYY):</label>
+                                    <input type="text" id="detalle_fecha_nacimiento" class="detalle-editable" data-field="fecha-nacimiento" value="${fechaNacimiento}" placeholder="DD/MM/YYYY">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="detalle_genero">Género:</label>
+                                    <select id="detalle_genero" class="detalle-editable" data-field="genero">
+                                        <option value="" ${!cliente.genero ? 'selected' : ''}>Seleccionar</option>
+                                        <option value="masculino" ${cliente.genero === 'masculino' ? 'selected' : ''}>Masculino</option>
+                                        <option value="femenino" ${cliente.genero === 'femenino' ? 'selected' : ''}>Femenino</option>
+                                        <option value="otro" ${cliente.genero === 'otro' ? 'selected' : ''}>Otro</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="detalle_ubicacion">Ubicación:</label>
+                                    <input type="text" id="detalle_ubicacion" class="detalle-editable" data-field="ubicacion" value="${cliente.ubicacion || ''}">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="detalle_canal">Canal:</label>
+                                    <select id="detalle_canal" class="detalle-editable" data-field="canal">
+                                        <option value="" ${!cliente.canal ? 'selected' : ''}>Seleccionar</option>
+                                        <option value="instagram" ${cliente.canal === 'instagram' ? 'selected' : ''}>Instagram</option>
+                                        <option value="facebook" ${cliente.canal === 'facebook' ? 'selected' : ''}>Facebook</option>
+                                        <option value="tiktok" ${cliente.canal === 'tiktok' ? 'selected' : ''}>TikTok</option>
+                                        <option value="youtube" ${cliente.canal === 'youtube' ? 'selected' : ''}>YouTube</option>
+                                        <option value="twitter" ${cliente.canal === 'twitter' ? 'selected' : ''}>Twitter</option>
+                                        <option value="otro" ${cliente.canal === 'otro' ? 'selected' : ''}>Otro</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="detalle_plan">Plan:</label>
+                                    <select id="detalle_plan" class="detalle-editable" data-field="plan">
+                                        <option value="" ${!cliente.plan ? 'selected' : ''}>Seleccionar plan</option>
+                                        ${[1,2,3,4,5,6,7,8,9,10].map(num => 
+                                            `<option value="Plan ${num}" ${cliente.plan === `Plan ${num}` ? 'selected' : ''}>Plan ${num}</option>`
+                                        ).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <h4>Información Física</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="detalle_peso_inicial">Peso Inicial (kg):</label>
+                                    <input type="number" id="detalle_peso_inicial" class="detalle-editable" data-field="peso-inicial" step="0.1" value="${cliente['peso-inicial'] || ''}">
+                                </div>
+                                <div class="form-group">
+                                    <label for="detalle_peso_deseado">Peso Deseado (kg):</label>
+                                    <input type="number" id="detalle_peso_deseado" class="detalle-editable" data-field="peso-deseado" step="0.1" value="${cliente['peso-deseado'] || ''}">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="detalle_grasa_inicial">Grasa Inicial (%):</label>
+                                    <input type="number" id="detalle_grasa_inicial" class="detalle-editable" data-field="grasa-inicial" step="0.1" value="${cliente['grasa-inicial'] || ''}">
+                                </div>
+                                <div class="form-group">
+                                    <label for="detalle_grasa_deseada">Grasa Deseada (%):</label>
+                                    <input type="number" id="detalle_grasa_deseada" class="detalle-editable" data-field="grasa-deseada" step="0.1" value="${cliente['grasa-deseada'] || ''}">
+                                </div>
+                            </div>
+                            
+                            <h4>Información de Registro</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="detalle_fecha_prospecto">Fecha de Prospecto:</label>
+                                    <input type="text" id="detalle_fecha_prospecto" value="${fechaProspecto}" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label for="detalle_fecha_cliente">Fecha de Cliente:</label>
+                                    <input type="text" id="detalle_fecha_cliente" value="${fechaCliente}" readonly>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="detalle_numero_cliente">Número de Cliente:</label>
+                                    <input type="text" id="detalle_numero_cliente" value="${cliente['numero-cliente'] || 'N/A'}" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label for="detalle_numero_expediente">Número de Expediente:</label>
+                                    <input type="text" id="detalle_numero_expediente" value="${cliente['numero-expediente'] || 'N/A'}" readonly>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="detalle_finalizado">Finalizado:</label>
+                                    <div class="checkbox-center" style="justify-content: flex-start;">
+                                        <input type="checkbox" id="detalle_finalizado" class="custom-checkbox detalle-editable" data-field="finalizado" ${cliente.finalizado === "true" ? 'checked' : ''}>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>ID de Contacto:</label>
+                                    <input type="text" value="${cliente['id-contacto'] || 'N/A'}" readonly>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" id="cancelDetalleBtn">Cancelar</button>
+                        <button class="btn btn-primary" id="guardarDetalleBtn">Guardar</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Agregar el modal al DOM
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Asignar eventos a campos editables del detalle
+        const detalleEditables = document.querySelectorAll('.detalle-editable');
+        detalleEditables.forEach(field => {
+            field.addEventListener('change', function() {
+                // Identificar este formulario como modificado para la validación posterior
+                field.classList.add('modified');
+            });
+        });
+        
+        // Agregar eventos para los botones
+        document.getElementById('closeDetalleModal').addEventListener('click', cerrarDetalleModal);
+        document.getElementById('cancelDetalleBtn').addEventListener('click', cerrarDetalleModal);
+        document.getElementById('guardarDetalleBtn').addEventListener('click', guardarDetalleCliente);
+        
+        function guardarDetalleCliente() {
+            const clienteId = document.getElementById('detalleClienteId').value;
+            if (!clienteId || !datosAPI.contactosClientes[clienteId]) {
+                showToast('Error: Cliente no encontrado');
+                return;
+            }
+            
+            // Obtener referencia al cliente original para las propiedades de solo lectura
+            const clienteOriginal = datosAPI.contactosClientes[clienteId];
+            
+            // Recopilar todos los datos del cliente
+            const clienteData = {
+                'id-contacto': clienteId,
+                'nombre': document.getElementById('detalle_nombre').value,
+                'telefono': document.getElementById('detalle_telefono').value,
+                'email': document.getElementById('detalle_email').value,
+                'fecha-nacimiento': document.getElementById('detalle_fecha_nacimiento').value,
+                'genero': document.getElementById('detalle_genero').value,
+                'ubicacion': document.getElementById('detalle_ubicacion').value,
+                'canal': document.getElementById('detalle_canal').value,
+                'plan': document.getElementById('detalle_plan').value,
+                'peso-inicial': document.getElementById('detalle_peso_inicial').value,
+                'peso-deseado': document.getElementById('detalle_peso_deseado').value,
+                'grasa-inicial': document.getElementById('detalle_grasa_inicial').value,
+                'grasa-deseada': document.getElementById('detalle_grasa_deseada').value,
+                'finalizado': document.getElementById('detalle_finalizado').checked ? "true" : "false",
+                // Mantener los campos de solo lectura
+                'fecha-prospecto': clienteOriginal['fecha-prospecto'],
+                'fecha-cliente': clienteOriginal['fecha-cliente'],
+                'numero-cliente': clienteOriginal['numero-cliente'],
+                'numero-expediente': clienteOriginal['numero-expediente']
+            };
+            
+            // Validar los campos
+            let isValid = true;
+            
+            // Eliminar todos los mensajes de error existentes
+            document.querySelectorAll('.field-error').forEach(el => el.remove());
+            
+            // Validar teléfono
+            const telefonoEl = document.getElementById('detalle_telefono');
+            if (clienteData.telefono && !validatePhone(clienteData.telefono)) {
+                telefonoEl.classList.add('invalid');
+                const errorEl = document.createElement('div');
+                errorEl.className = 'field-error';
+                errorEl.textContent = 'El teléfono debe tener 10 dígitos';
+                telefonoEl.parentNode.appendChild(errorEl);
+                isValid = false;
+            } else {
+                telefonoEl.classList.remove('invalid');
+            }
+            
+            // Validar email
+            const emailEl = document.getElementById('detalle_email');
+            if (clienteData.email && !validateEmail(clienteData.email)) {
+                emailEl.classList.add('invalid');
+                const errorEl = document.createElement('div');
+                errorEl.className = 'field-error';
+                errorEl.textContent = 'El email no es válido';
+                emailEl.parentNode.appendChild(errorEl);
+                isValid = false;
+            } else {
+                emailEl.classList.remove('invalid');
+            }
+            
+            if (!isValid) {
+                showToast('Por favor corrija los campos inválidos');
+                return;
+            }
+            
+            // Mostrar overlay de carga
+            loadingOverlay.style.display = 'flex';
+            
+            // Enviar actualización a la API
+            updateCliente(clienteData)
+                .then(() => {
+                    // Cerrar el modal primero
+                    cerrarDetalleModal();
+                    
+                    // Mostrar mensaje
+                    showToast('Datos del cliente actualizados correctamente');
+                    
+                    // Recargar todos los datos desde la API para asegurar sincronización
+                    return fetchDatos();
+                })
+                .then(() => {
+                    // Una vez que los datos se han recargado, actualizar la vista
+                    if (screenTitle.textContent === 'Clientes') {
+                        loadClientsContent();
+                    }
+                    
+                    // Ocultar overlay de carga
+                    loadingOverlay.style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Error al actualizar cliente:', error);
+                    showToast('Error al actualizar cliente. Por favor, intente nuevamente.');
+                    loadingOverlay.style.display = 'none';
+                });
+        }
+        
+        function cerrarDetalleModal() {
+            const modal = document.getElementById('detalleClienteModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+    }
+
+    // Función para actualizar un cliente individual
+    async function updateCliente(clienteData) {
+        try {
+            // Mostrar overlay de carga
+            loadingOverlay.style.display = 'flex';
+            
+            // Agregar timestamp para evitar caché
+            const uniqueParam = new Date().getTime();
+            const urlWithParams = `${API_URL}?timestamp=${uniqueParam}`;
+            
+            // Modificar el formato de datos para que coincida con lo que espera el servidor
+            const dataToSend = {
+                action: 'updateclientes',  // El servidor espera 'updateclientes' (plural)
+                data: {
+                    cliente: clienteData   // El servidor espera un objeto cliente único, no un array
+                }
+            };
+            
+            // Log para verificar los datos que se están enviando
+            console.log('Datos de cliente a actualizar:', dataToSend);
+            
+            // Enviar datos
+            await fetch(urlWithParams, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(dataToSend)
+            });
+            
+            return { success: true };
+        } catch (error) {
+            console.error('Error al actualizar cliente:', error);
+            throw error;
+        }
+    }
+
     // Cargar Expedientes
     function loadRecordsContent() {
         let expedientesRows = '';
@@ -1872,5 +2395,127 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error al insertar cliente:', error);
             throw error;
         }
+    }
+
+    // Función para filtrar la tabla de clientes
+    function filterClientesTable(searchTerm) {
+        const tableBody = document.getElementById('clientesTableBody');
+        if (!tableBody) return;
+        
+        // Si no hay término de búsqueda, mostrar todos los registros
+        if (!searchTerm) {
+            loadClientsContent();
+            return;
+        }
+        
+        // Filtrar clientes
+        const clientesArray = Object.values(datosAPI.contactosClientes || {});
+        const filteredClientes = clientesArray.filter(cliente => {
+            return Object.values(cliente).some(value => {
+                // Solo buscar en valores de texto o número
+                if (value && (typeof value === 'string' || typeof value === 'number')) {
+                    return String(value).toLowerCase().includes(searchTerm.toLowerCase());
+                }
+                return false;
+            });
+        });
+        
+        // Limpiar tabla
+        tableBody.innerHTML = '';
+        
+        // Si no hay resultados
+        if (filteredClientes.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 30px;">No se encontraron coincidencias</td>
+                </tr>
+            `;
+            return;
+        }
+        
+        // Renderizar resultados filtrados
+        filteredClientes.forEach(cliente => {
+            const row = document.createElement('tr');
+            row.setAttribute('data-cliente-id', cliente['id-contacto']);
+            
+            // Formatear fecha
+            let fechaCliente = 'N/A';
+            if (cliente['fecha-cliente']) {
+                try {
+                    if (cliente['fecha-cliente'].includes('T')) {
+                        const fecha = new Date(cliente['fecha-cliente']);
+                        fechaCliente = `${fecha.getDate().toString().padStart(2, '0')}/${(fecha.getMonth()+1).toString().padStart(2, '0')}/${fecha.getFullYear()}`;
+                    } else if (cliente['fecha-cliente'].includes('/')) {
+                        const fechaParts = cliente['fecha-cliente'].split(' ')[0].split('/');
+                        if (fechaParts.length === 3) {
+                            fechaCliente = `${fechaParts[0]}/${fechaParts[1]}/${fechaParts[2]}`;
+                        } else {
+                            fechaCliente = cliente['fecha-cliente'].split(' ')[0];
+                        }
+                    } else {
+                        fechaCliente = cliente['fecha-cliente'];
+                    }
+                } catch (e) {
+                    fechaCliente = cliente['fecha-cliente'];
+                }
+            }
+            
+            row.innerHTML = `
+                <td>
+                    <input type="text" class="editable-field cliente-field" style="min-width: 180px;" value="${cliente.nombre || ''}" data-field="nombre">
+                </td>
+                <td>
+                    <input type="tel" class="editable-field cliente-field" value="${cliente.telefono || ''}" data-field="telefono" maxlength="10">
+                </td>
+                <td>
+                    <input type="email" class="editable-field cliente-field" value="${cliente.email || ''}" data-field="email">
+                </td>
+                <td>${fechaCliente}</td>
+                <td>${cliente['numero-cliente'] || 'N/A'}</td>
+                <td>${cliente['numero-expediente'] || 'N/A'}</td>
+                <td>
+                    <div class="checkbox-center">
+                        <input type="checkbox" class="custom-checkbox cliente-field" data-field="finalizado" ${cliente.finalizado === "true" ? 'checked' : ''}>
+                    </div>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-primary detalle-btn" data-id="${cliente['id-contacto']}">
+                        <i class="fas fa-info-circle"></i> Detalle
+                    </button>
+                </td>
+            `;
+            
+            tableBody.appendChild(row);
+        });
+        
+        // Reasignar eventos a los campos editables
+        const editableFields = document.querySelectorAll('.cliente-field');
+        editableFields.forEach(field => {
+            field.addEventListener('change', function() {
+                const clienteId = this.closest('tr').getAttribute('data-cliente-id');
+                const fieldName = this.getAttribute('data-field');
+                let value = this.value;
+                
+                if (this.type === 'checkbox') {
+                    value = this.checked ? "true" : "false";
+                }
+                
+                if (datosAPI.contactosClientes[clienteId]) {
+                    datosAPI.contactosClientes[clienteId][fieldName] = value;
+                    clientesModificados[clienteId] = true;
+                }
+            });
+        });
+        
+        // Reasignar eventos a los botones de detalle
+        const detalleBtns = document.querySelectorAll('.detalle-btn');
+        detalleBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const clienteId = this.getAttribute('data-id');
+                if (clienteId && datosAPI.contactosClientes[clienteId]) {
+                    mostrarDetalleCliente(datosAPI.contactosClientes[clienteId]);
+                }
+            });
+        });
     }
 }); 
