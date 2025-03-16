@@ -4,12 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>URUETA CRM | Dashboard</title>
-    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+    <!-- Spinner de carga -->
+    <div id="loading-spinner" class="spinner-overlay">
+        <div class="spinnerContainer">
+            <div class="spinner"></div>
+            <div class="loader">
+                <p>Cargando</p>
+                <div class="words">
+                    <span class="word">clientes</span>
+                    <span class="word">prospectos</span>
+                    <span class="word">expedientes</span>
+                    <span class="word">datos</span>
+                    <span class="word">sistema</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <!-- Barra de navegación lateral -->
         <aside class="sidebar">
@@ -71,24 +88,258 @@
                     <h1 id="screen-title">Dashboard</h1>
                 </div>
                 <div class="header-right">
-                    <div class="search-box">
-                        <i class="fas fa-search"></i>
-                        <input type="text" placeholder="Buscar...">
-                    </div>
                     <button class="notification-btn">
                         <i class="fas fa-bell"></i>
-                        <span class="notification-badge">3</span>
+                        <span class="notification-badge">0</span>
                     </button>
                 </div>
             </header>
             
             <div class="content-wrapper">
-                <!-- El contenido de cada sección se cargará aquí dinámicamente -->
-                <div id="screen-content"></div>
+                <!-- Sección de Inicio/Dashboard -->
+                <section id="home-section" class="screen-section active">
+                    <!-- Contenedor de métricas -->
+                    <div class="metrics-container">
+                        <!-- Métricas se crearán dinámicamente sin valores por defecto -->
+                    </div>
+                    
+                    <!-- Contenedor para gráficos -->
+                    <div class="charts-container">
+                        <!-- Los gráficos se añadirán dinámicamente -->
+                    </div>
+                    
+                    <!-- Actividades recientes -->
+                    <div class="activities-container">
+                        <div class="section-header">
+                            <h2>Actividades Recientes</h2>
+                        </div>
+                        <div class="activities-list">
+                            <!-- Las actividades se añadirán dinámicamente -->
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Sección de Prospectos -->
+                <section id="prospects-section" class="screen-section">
+                    <div class="section-header">
+                        <h2>Gestión de Prospectos</h2>
+                        <div class="prospects-actions">
+                            <div class="search-wrapper">
+                                <input type="text" id="prospectsSearch" placeholder="Buscar en prospectos...">
+                                <i class="fas fa-search"></i>
+                            </div>
+                            <div class="buttons-wrapper">
+                                <button class="action-btn refresh-btn" id="refreshProspects">
+                                    <i class="fas fa-sync-alt"></i> Actualizar
+                                </button>
+                                <button class="action-btn save-btn" id="saveAllProspects">
+                                    <i class="fas fa-save"></i> Guardar
+                                </button>
+                                <button class="action-btn convert-btn" id="convertProspects">
+                                    <i class="fas fa-user-check"></i> Generar Cliente
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table id="prospectsTable" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="display: none;">ID</th>
+                                    <th class="check-column">Convertir</th>
+                                    <th>Nombre</th>
+                                    <th>Teléfono</th>
+                                    <th>Email</th>
+                                    <th>Ubicación</th>
+                                    <th>Canal</th>
+                                    <th>Fecha</th>
+                                    <th>Contactado</th>
+                                    <th>Interesado</th>
+                                    <th>Motivo</th>
+                                    <th>No. Cliente</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Los datos de prospectos se cargarán dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Paginación -->
+                    <div class="pagination-container">
+                        <div class="pagination-info">
+                            Mostrando <span id="showing-from">0</span> a <span id="showing-to">0</span> de <span id="total-entries">0</span> entradas
+                        </div>
+                        <div class="pagination-length">
+                            <label>Mostrar 
+                                <select id="entries-per-page">
+                                    <option value="10" selected>10</option>
+                                    <option value="20">20</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                </select>
+                                entradas
+                            </label>
+                        </div>
+                        <div class="pagination-controls">
+                            <button id="prev-page" class="pagination-btn" disabled><i class="fas fa-chevron-left"></i></button>
+                            <div id="pagination-numbers" class="pagination-numbers">
+                                <!-- Números de página generados dinámicamente -->
+                            </div>
+                            <button id="next-page" class="pagination-btn" disabled><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Sección de Clientes -->
+                <section id="clients-section" class="screen-section">
+                    <div class="section-header">
+                        <h2>Gestión de Clientes</h2>
+                        <div class="header-actions">
+                            <button class="action-btn refresh-btn" id="refreshClients">
+                                <i class="fas fa-sync-alt"></i> Actualizar
+                            </button>
+                            <button class="action-btn add-btn">
+                                <i class="fas fa-plus"></i> Nuevo Cliente
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="clients-grid">
+                        <!-- Las tarjetas de clientes se cargarán dinámicamente -->
+                    </div>
+                </section>
+                
+                <!-- Sección de Expedientes -->
+                <section id="records-section" class="screen-section">
+                    <div class="section-header">
+                        <h2>Expedientes de Clientes</h2>
+                        <div class="header-actions">
+                            <button class="action-btn refresh-btn">
+                                <i class="fas fa-sync-alt"></i> Actualizar
+                            </button>
+                            <button class="action-btn add-btn">
+                                <i class="fas fa-plus"></i> Nuevo Expediente
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="filters-container">
+                        <div class="filter-group">
+                            <label for="recordStatus">Estado:</label>
+                            <select id="recordStatus" class="filter-control">
+                                <option value="all">Todos</option>
+                                <option value="active">Activos</option>
+                                <option value="archived">Archivados</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="records-list">
+                        <!-- Los expedientes se cargarán dinámicamente -->
+                    </div>
+                </section>
             </div>
         </main>
     </div>
 
-    <script src="js/main.js"></script>
+    <!-- Añadir el toast de notificaciones al final del body, antes del cierre -->
+    <div id="toast-notification" class="toast-notification">
+        <div class="toast-content">
+            <i class="fas fa-bell-exclamation toast-icon"></i>
+            <div class="toast-message">
+                Tienes <span id="toast-count">0</span> <a href="#prospects" id="toast-link">prospectos</a> sin atender
+            </div>
+            <button class="toast-close"><i class="fas fa-times"></i></button>
+        </div>
+    </div>
+
+    <!-- Modal para editar motivo -->
+    <div id="motivoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Motivo / Notas</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <textarea id="motivoText" rows="6" placeholder="Ingrese notas o motivo..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button id="guardarMotivo" class="btn btn-primary">Guardar</button>
+                <button id="cancelarMotivo" class="btn btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para generar cliente -->
+    <div id="clienteModal" class="modal modal-large">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Generar Cliente</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="cliente-form" class="form-grid">
+                    <div class="form-group">
+                        <label for="cliente-nombre">Nombre</label>
+                        <input type="text" id="cliente-nombre" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cliente-telefono">Teléfono</label>
+                        <input type="tel" id="cliente-telefono" pattern="[0-9]*" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cliente-email">Email</label>
+                        <input type="email" id="cliente-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cliente-ubicacion">Ubicación</label>
+                        <input type="text" id="cliente-ubicacion" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cliente-canal">Canal</label>
+                        <select id="cliente-canal" required>
+                            <option value="">Selecciona una opción</option>
+                            <option value="instagram">Instagram</option>
+                            <option value="facebook">Facebook</option>
+                            <option value="tiktok">TikTok</option>
+                            <option value="youtube">YouTube</option>
+                            <option value="twitter">Twitter</option>
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="referido">Referido</option>
+                            <option value="otro">Otro</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="cliente-fecha">Fecha</label>
+                        <input type="datetime-local" id="cliente-fecha" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cliente-plan">Plan Contratado</label>
+                        <select id="cliente-plan" required>
+                            <option value="">Selecciona un plan</option>
+                            <option value="basico">Plan Básico</option>
+                            <option value="estandar">Plan Estándar</option>
+                            <option value="premium">Plan Premium</option>
+                            <option value="empresarial">Plan Empresarial</option>
+                            <option value="personalizado">Plan Personalizado</option>
+                        </select>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="cliente-motivo">Notas / Comentarios</label>
+                        <textarea id="cliente-motivo" rows="4"></textarea>
+                    </div>
+                    <input type="hidden" id="cliente-id">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button id="guardarCliente" class="btn btn-primary">Generar Cliente</button>
+                <button id="cancelarCliente" class="btn btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
 </body>
 </html>
