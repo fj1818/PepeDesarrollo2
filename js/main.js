@@ -3,7 +3,7 @@ let datosAPI = null;
 let prospectosArray = []; // Declaración global de prospectosArray
 
 // Variable global para la URL de la API
-const API_URL = 'https://script.google.com/macros/s/AKfycbz_-hCw_RDznuQI20gR7Hdx_ll9jeoVBKQyAp8s1LjGhwYBMYNP0T6BBlg91Ee_6zsSJQ/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbz1HF7H07xQAHgHCEwKy7eSkk0A44om3fliN3cOr0-a8RFBVVSDuaDrn-qCLdr3aNomRA/exec';
 
 // Variable global para rastrear los cambios
 let prospectosModificados = {}; 
@@ -60,6 +60,81 @@ checkboxStyle.textContent = `
     }
 `;
 document.head.appendChild(checkboxStyle);
+
+// Agregar estilos para el modal de cliente
+const clientModalStyle = document.createElement('style');
+clientModalStyle.textContent = `
+    .client-modal {
+        width: 80%;
+        max-width: 800px;
+    }
+    
+    .form-row {
+        display: flex;
+        flex-wrap: wrap;
+        margin: 0 -10px;
+    }
+    
+    .form-group {
+        flex: 1 0 45%;
+        padding: 0 10px;
+        margin-bottom: 15px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+    }
+    
+    .form-group input,
+    .form-group select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    @media (max-width: 768px) {
+        .form-group {
+            flex: 1 0 100%;
+        }
+    }
+    
+    .modal-body {
+        max-height: 70vh;
+        overflow-y: auto;
+        padding-right: 10px;
+    }
+    
+    .modal-body::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .modal-body::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+    
+    .modal-body::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+    }
+    
+    .modal-body::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+    
+    .modal h4 {
+        margin-top: 15px;
+        margin-bottom: 10px;
+        color: #333;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 5px;
+    }
+`;
+document.head.appendChild(clientModalStyle);
 
 document.addEventListener('DOMContentLoaded', function() {
     // Referencias a elementos DOM
@@ -671,6 +746,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     isValid = validateEmail(value);
                     errorMessage = 'Email no válido';
                     break;
+                case 'contactado':
+                    // Siempre guardar como string "true" o "" (vacío)
+                    // Importante: Asegurar que sea exactamente la cadena "true" para la API
+                    value = value ? "true" : "";
+                    console.log(`Valor de contactado guardado: ${value}`);
+                    break;
             }
             
             // Eliminar mensajes de error anteriores
@@ -782,10 +863,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Mantener el formato de fecha original sin modificarlo
                 const fechaFormateada = prospecto['fecha-prospecto'] || 'N/A';
                 
+                // Comprobar si el prospecto ya es cliente (tiene número de cliente)
+                const yaEsCliente = prospecto['numero-cliente'] && prospecto['numero-cliente'].trim() !== '';
+                
+                const convertColumn = yaEsCliente 
+                    ? `<td class="convert-column"><i class="fas fa-user-check" style="color: #4CAF50;" title="Cliente convertido"></i></td>`
+                    : `<td class="convert-column"><input type="checkbox" class="convert-checkbox" title="Convertir a cliente"></td>`;
+                
                 row.innerHTML = `
-                    <td class="convert-column">
-                        <input type="checkbox" class="convert-checkbox" title="Convertir a cliente">
-                    </td>
+                    ${convertColumn}
                     <td>
                         <input type="text" class="editable-field" value="${prospecto.nombre || ''}" data-field="nombre">
                     </td>
@@ -846,6 +932,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Manejar checkboxes
                     if (this.type === 'checkbox') {
                         value = this.checked;
+                        // Log adicional para verificar valores de checkbox
+                        console.log(`Checkbox ${fieldName} cambiado a: ${value}`);
                     }
                     
                     handleFieldChange(prospectoId, fieldName, value, this);
@@ -868,21 +956,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const convertCheckboxes = document.querySelectorAll('.convert-checkbox');
             convertCheckboxes.forEach(checkbox => {
                 checkbox.addEventListener('change', function() {
-                    const prospectoId = this.closest('tr').getAttribute('data-prospecto-id');
-                    const prospecto = datosAPI.prospecto[prospectoId];
-                    
-                    if (this.checked) {
-                        // Mostrar confirmación
-                        if (confirm(`¿Desea convertir a ${prospecto.nombre || 'este prospecto'} en cliente?`)) {
-                            console.log('Convertir a cliente:', prospectoId);
-                            
-                            // Aquí irá la lógica para convertir prospecto a cliente
-                            showToast(`<strong>${prospecto.nombre || 'Prospecto'}</strong> ha sido convertido a cliente correctamente.`);
-                        } else {
-                            // Si cancela, desmarcar el checkbox
-                            this.checked = false;
-                        }
-                    }
+                    // Solo marcar el checkbox, sin mostrar alerta
+                    // El procesamiento real ocurrirá cuando se presione "Generar Cliente"
                 });
             });
         }
@@ -1005,6 +1080,48 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
             });
         }
+
+        const generateClientBtn = document.getElementById('generateClientBtn');
+        if (generateClientBtn) {
+            generateClientBtn.addEventListener('click', function() {
+                // Verificar si hay algún prospecto seleccionado para convertir
+                const selectedProspectos = [];
+                
+                document.querySelectorAll('.convert-checkbox:checked').forEach(checkbox => {
+                    const prospectoId = checkbox.closest('tr').getAttribute('data-prospecto-id');
+                    const prospecto = datosAPI.prospecto[prospectoId];
+                    
+                    // Verificar si el prospecto cumple con las condiciones
+                    if (prospecto) {
+                        const row = checkbox.closest('tr');
+                        const contactadoCheck = row.querySelector('[data-field="contactado"]');
+                        const interesadoSelect = row.querySelector('[data-field="interesado"]');
+                        
+                        if (contactadoCheck && contactadoCheck.checked) {
+                            if (interesadoSelect && interesadoSelect.value === 'si') {
+                                // Cumple todas las condiciones
+                                selectedProspectos.push(prospecto);
+                            } else {
+                                // Contactado pero no interesado
+                                showToast(`El prospecto <strong>${prospecto.nombre || 'seleccionado'}</strong> no está interesado.`);
+                                checkbox.checked = false; // Desmarcar el checkbox
+                            }
+                        } else {
+                            // No está contactado
+                            showToast(`El prospecto <strong>${prospecto.nombre || 'seleccionado'}</strong> no ha sido contactado.`);
+                            checkbox.checked = false; // Desmarcar el checkbox
+                        }
+                    }
+                });
+                
+                // Si hay prospectos válidos, mostrar el modal
+                if (selectedProspectos.length > 0) {
+                    showClientFormModal(selectedProspectos[0]); // Mostrar el modal con el primer prospecto válido
+                } else {
+                    showToast('No hay prospectos seleccionados o elegibles para convertir a cliente.');
+                }
+            });
+        }
     }
     
     // Función para filtrar la tabla de prospectos
@@ -1052,13 +1169,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 const row = document.createElement('tr');
                 row.setAttribute('data-prospecto-id', prospecto['id-prospecto']);
                 
-                // Mantener el formato de fecha original
-                const fechaFormateada = prospecto['fecha-prospecto'] || 'N/A';
+                // Comprobar si el prospecto ya es cliente (tiene número de cliente)
+                const yaEsCliente = prospecto['numero-cliente'] && prospecto['numero-cliente'].trim() !== '';
+                
+                const convertColumn = yaEsCliente 
+                    ? `<td class="convert-column"><i class="fas fa-user-check" style="color: #4CAF50;" title="Cliente convertido"></i></td>`
+                    : `<td class="convert-column"><input type="checkbox" class="convert-checkbox" title="Convertir a cliente"></td>`;
                 
                 row.innerHTML = `
-                    <td class="convert-column">
-                        <input type="checkbox" class="convert-checkbox" title="Convertir a cliente">
-                    </td>
+                    ${convertColumn}
                     <td>
                         <input type="text" class="editable-field" value="${prospecto.nombre || ''}" data-field="nombre">
                     </td>
@@ -1084,7 +1203,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             </select>
                         </div>
                     </td>
-                    <td>${fechaFormateada}</td>
+                    <td>${prospecto['fecha-prospecto'] || 'N/A'}</td>
                     <td>
                         <div class="checkbox-center">
                             <input type="checkbox" class="custom-checkbox" data-field="contactado" ${prospecto.contactado ? 'checked' : ''}>
@@ -1132,6 +1251,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Manejar checkboxes
                 if (this.type === 'checkbox') {
                     value = this.checked;
+                    // Log adicional para verificar valores de checkbox
+                    console.log(`Checkbox ${fieldName} cambiado a: ${value}`);
                 }
                 
                 handleFieldChange(prospectoId, fieldName, value, this);
@@ -1154,21 +1275,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const convertCheckboxes = document.querySelectorAll('.convert-checkbox');
         convertCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', function() {
-                const prospectoId = this.closest('tr').getAttribute('data-prospecto-id');
-                const prospecto = datosAPI.prospecto[prospectoId];
-                
-                if (this.checked) {
-                    // Mostrar confirmación
-                    if (confirm(`¿Desea convertir a ${prospecto.nombre || 'este prospecto'} en cliente?`)) {
-                        console.log('Convertir a cliente:', prospectoId);
-                        
-                        // Aquí irá la lógica para convertir prospecto a cliente
-                        showToast(`<strong>${prospecto.nombre || 'Prospecto'}</strong> ha sido convertido a cliente correctamente.`);
-                    } else {
-                        // Si cancela, desmarcar el checkbox
-                        this.checked = false;
-                    }
-                }
+                // Solo marcar el checkbox, sin mostrar alerta
+                // El procesamiento real ocurrirá cuando se presione "Generar Cliente"
             });
         });
     }
@@ -1388,6 +1496,380 @@ document.addEventListener('DOMContentLoaded', function() {
             return { success: true };
         } catch (error) {
             console.error('Error al guardar datos:', error);
+            throw error;
+        }
+    }
+
+    // Función para mostrar el modal con el formulario de cliente
+    function showClientFormModal(prospecto) {
+        // Eliminar el modal anterior si existe
+        const prevModal = document.getElementById('clientFormModal');
+        if (prevModal) {
+            prevModal.remove();
+        }
+        
+        // Formatear la fecha de prospecto de ISO a formato legible
+        let fechaProspectoFormateada = 'N/A';
+        if (prospecto['fecha-prospecto']) {
+            const fechaProsp = new Date(prospecto['fecha-prospecto']);
+            fechaProspectoFormateada = `${fechaProsp.getDate().toString().padStart(2, '0')}/${(fechaProsp.getMonth()+1).toString().padStart(2, '0')}/${fechaProsp.getFullYear()} ${fechaProsp.getHours().toString().padStart(2, '0')}:${fechaProsp.getMinutes().toString().padStart(2, '0')}:${fechaProsp.getSeconds().toString().padStart(2, '0')}`;
+        }
+        
+        // Obtener fecha actual en formato DD/MM/YYYY HH:MM:SS
+        const now = new Date();
+        const fechaClienteFormateada = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+        
+        // Generar número de expediente si no existe
+        let numeroExpediente = '';
+        let consecutivoExpediente = 1;
+        
+        if (datosAPI) {
+            // Buscar en expedientes existentes
+            const expedientesExistentes = datosAPI.expedienteClientes 
+                ? Object.values(datosAPI.expedienteClientes)
+                    .filter(exp => exp['numero-expediente'] && exp['numero-expediente'].startsWith('EXP'))
+                    .map(exp => exp['numero-expediente'])
+                : [];
+                
+            // Buscar en clientes existentes que puedan tener número de expediente
+            const clientesConExpediente = datosAPI.contactosClientes 
+                ? Object.values(datosAPI.contactosClientes)
+                    .filter(c => c['numero-expediente'] && c['numero-expediente'].startsWith('EXP'))
+                    .map(c => c['numero-expediente'])
+                : [];
+                
+            // Combinar todos los números de expediente
+            const todosLosExpedientes = [...expedientesExistentes, ...clientesConExpediente];
+                
+            // Buscar el número más alto
+            todosLosExpedientes.forEach(num => {
+                try {
+                    const numActual = parseInt(num.substring(3));
+                    if (!isNaN(numActual) && numActual >= consecutivoExpediente) {
+                        consecutivoExpediente = numActual + 1;
+                    }
+                } catch (error) {
+                    console.error('Error al procesar número de expediente:', num, error);
+                }
+            });
+        }
+        numeroExpediente = `EXP${consecutivoExpediente.toString().padStart(5, '0')}`;
+        
+        // Generar número de cliente correctamente
+        let numeroCliente = prospecto['numero-cliente'] || '';
+        let consecutivoCliente = 1;
+        
+        if (!numeroCliente) {
+            if (datosAPI && datosAPI.contactosClientes) {
+                // Encontrar el último número de cliente
+                const clientesArray = Object.values(datosAPI.contactosClientes);
+                
+                // También buscar en prospectos que ya tienen número de cliente asignado
+                const prospectosConCliente = Object.values(datosAPI.prospecto || {})
+                    .filter(p => p['numero-cliente'] && p['numero-cliente'].startsWith('NMC'))
+                    .map(p => p['numero-cliente']);
+                    
+                // Combinar todos los números de cliente existentes
+                const todosLosNumeros = [...clientesArray.map(c => c['numero-cliente']), ...prospectosConCliente]
+                    .filter(num => num && num.startsWith('NMC'));
+                    
+                // Buscar el número más alto
+                todosLosNumeros.forEach(num => {
+                    try {
+                        const numActual = parseInt(num.substring(3));
+                        if (!isNaN(numActual) && numActual >= consecutivoCliente) {
+                            consecutivoCliente = numActual + 1;
+                        }
+                    } catch (error) {
+                        console.error('Error al procesar número de cliente:', num, error);
+                    }
+                });
+            }
+            numeroCliente = `NMC${consecutivoCliente.toString().padStart(5, '0')}`;
+        }
+        
+        // Crear opciones para el campo planes
+        let planesOptions = '';
+        for (let i = 1; i <= 10; i++) {
+            planesOptions += `<option value="Plan ${i}">Plan ${i}</option>`;
+        }
+        
+        // Crear la estructura del modal con scroll
+        const modalHTML = `
+            <div class="modal-overlay active" id="clientFormModal">
+                <div class="modal client-modal">
+                    <div class="modal-header">
+                        <h3>Generar Cliente</h3>
+                        <button class="modal-close" id="closeClientFormModal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body" style="max-height: 70vh; overflow-y: auto; padding-right: 10px;">
+                        <form id="clientForm">
+                            <!-- Sección 1: Campos automáticos (se toman de la fila) -->
+                            <h4>Datos del prospecto</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientName">Nombre completo</label>
+                                    <input type="text" id="clientName" value="${prospecto.nombre || ''}" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientPhone">Teléfono</label>
+                                    <input type="tel" id="clientPhone" value="${prospecto.telefono || ''}" readonly>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientEmail">Email</label>
+                                    <input type="email" id="clientEmail" value="${prospecto.email || ''}" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientLocation">Ubicación</label>
+                                    <input type="text" id="clientLocation" value="${prospecto.ubicacion || ''}" readonly>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientCanal">Canal</label>
+                                    <input type="text" id="clientCanal" value="${prospecto.canal || ''}" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientFechaProsp">Fecha de prospecto</label>
+                                    <input type="text" id="clientFechaProsp" value="${fechaProspectoFormateada}" readonly>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientFechaCliente">Fecha de cliente</label>
+                                    <input type="text" id="clientFechaCliente" value="${fechaClienteFormateada}" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientPlan">Plan</label>
+                                    <select id="clientPlan" required>
+                                        <option value="">Seleccionar plan</option>
+                                        ${planesOptions}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Sección 2: Campos a llenar manualmente -->
+                            <h4>Información adicional</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientDOB">Fecha de nacimiento</label>
+                                    <input type="date" id="clientDOB" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientGender">Género</label>
+                                    <select id="clientGender" required>
+                                        <option value="" selected>Seleccionar</option>
+                                        <option value="masculino">Masculino</option>
+                                        <option value="femenino">Femenino</option>
+                                        <option value="otro">Otro</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientInitialWeight">Peso inicial (kg)</label>
+                                    <input type="number" id="clientInitialWeight" step="0.1" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientTargetWeight">Peso deseado (kg)</label>
+                                    <input type="number" id="clientTargetWeight" step="0.1" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientCurrentFat">Grasa inicial (%)</label>
+                                    <input type="number" id="clientCurrentFat" step="0.1" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientTargetFat">Grasa deseada (%)</label>
+                                    <input type="number" id="clientTargetFat" step="0.1" required>
+                                </div>
+                            </div>
+                            
+                            <!-- Sección 3: Campos de expediente y número de cliente -->
+                            <h4>Información de registro</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientExpNumber">Número de expediente</label>
+                                    <input type="text" id="clientExpNumber" value="${numeroExpediente}" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientNumber">Número de cliente</label>
+                                    <input type="text" id="clientNumber" value="${numeroCliente}" readonly>
+                                </div>
+                            </div>
+                            
+                            <input type="hidden" id="prospectoId" value="${prospecto['id-prospecto']}">
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" id="cancelClientForm">Cancelar</button>
+                        <button class="btn btn-primary" id="generateClientForm">Generar Cliente</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Agregar el modal al DOM
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Agregar eventos a los botones
+        document.getElementById('closeClientFormModal').addEventListener('click', closeClientFormModal);
+        document.getElementById('cancelClientForm').addEventListener('click', closeClientFormModal);
+        document.getElementById('generateClientForm').addEventListener('click', async function() {
+            // Verificar que todos los campos requeridos estén completos
+            const form = document.getElementById('clientForm');
+            const requiredInputs = form.querySelectorAll('[required]');
+            let isValid = true;
+            
+            requiredInputs.forEach(input => {
+                if (!input.value.trim()) {
+                    input.classList.add('invalid');
+                    isValid = false;
+                } else {
+                    input.classList.remove('invalid');
+                }
+            });
+            
+            if (!isValid) {
+                showToast('Por favor complete todos los campos requeridos.');
+                return;
+            }
+            
+            // Obtener todos los valores del formulario
+            const prospectoId = document.getElementById('prospectoId').value;
+            const nombre = document.getElementById('clientName').value;
+            const telefono = document.getElementById('clientPhone').value;
+            const email = document.getElementById('clientEmail').value;
+            const fechaNacimiento = document.getElementById('clientDOB').value;
+            const genero = document.getElementById('clientGender').value;
+            const ubicacion = document.getElementById('clientLocation').value;
+            const pesoInicial = document.getElementById('clientInitialWeight').value;
+            const pesoDeseado = document.getElementById('clientTargetWeight').value;
+            const grasaInicial = document.getElementById('clientCurrentFat').value;
+            const grasaDeseada = document.getElementById('clientTargetFat').value;
+            const fechaProspecto = document.getElementById('clientFechaProsp').value;
+            const fechaCliente = document.getElementById('clientFechaCliente').value;
+            const canal = document.getElementById('clientCanal').value;
+            const numeroExpediente = document.getElementById('clientExpNumber').value;
+            const numeroCliente = document.getElementById('clientNumber').value;
+            const plan = document.getElementById('clientPlan').value;
+            
+            // Crear objeto con los datos del cliente
+            const clienteData = {
+                nombre,
+                telefono,
+                email,
+                'fecha-nacimiento': fechaNacimiento,
+                genero,
+                ubicacion,
+                'peso-inicial': pesoInicial,
+                'peso-deseado': pesoDeseado,
+                'grasa-inicial': grasaInicial,
+                'grasa-deseada': grasaDeseada,
+                'fecha-prospecto': fechaProspecto,
+                'fecha-cliente': fechaCliente,
+                canal,
+                'numero-expediente': numeroExpediente,
+                'numero-cliente': numeroCliente,
+                plan,
+                finalizado: false
+            };
+            
+            try {
+                // Insertar el nuevo cliente
+                await insertCliente(clienteData);
+                
+                // Actualizar el prospecto correspondiente
+                if (datosAPI.prospecto[prospectoId]) {
+                    // Además de actualizar el número de cliente, asegurarse que contactado=true
+                    datosAPI.prospecto[prospectoId]['numero-cliente'] = numeroCliente;
+                    datosAPI.prospecto[prospectoId]['contactado'] = "true"; // Asegurar que sea string
+                    
+                    // Marcar como modificado para guardarse en la API
+                    prospectosModificados[prospectoId] = true;
+                    
+                    // Guardar inmediatamente el prospecto actualizado
+                    saveDataToAPI()
+                        .then(() => {
+                            console.log('Prospecto actualizado con número de cliente');
+                        })
+                        .catch(error => {
+                            console.error('Error al actualizar prospecto:', error);
+                        });
+                }
+                
+                // Cerrar el modal y mostrar mensaje
+                closeClientFormModal();
+                showToast(`Cliente <strong>${nombre || 'Nuevo cliente'}</strong> generado correctamente.`);
+            } catch (error) {
+                console.error('Error al generar cliente:', error);
+                showToast('Error al generar cliente. Por favor, intente nuevamente.');
+            }
+        });
+        
+        // Función para cerrar el modal
+        function closeClientFormModal() {
+            const modal = document.getElementById('clientFormModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+    }
+
+    // Implementar la función para insertar cliente
+    async function insertCliente(clientData) {
+        try {
+            // Mostrar overlay de carga
+            loadingOverlay.style.display = 'flex';
+            
+            // Generar ID único para el cliente con formato CC + fecha y hora actual
+            const now = new Date();
+            const idPart = `CC${now.getDate().toString().padStart(2, '0')}${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][now.getMonth()]}${now.getFullYear()}${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
+            
+            // Asignar el ID generado
+            clientData['id-contacto'] = idPart;
+            
+            // Convertir finalizado a string "false"
+            clientData.finalizado = "false";
+            
+            // Agregar timestamp para evitar caché
+            const uniqueParam = new Date().getTime();
+            const urlWithParams = `${API_URL}?timestamp=${uniqueParam}`;
+            
+            const dataToSend = {
+                action: 'insertcliente',
+                data: {
+                    cliente: clientData
+                }
+            };
+            
+            // Log para verificar los datos que se están enviando
+            console.log('Datos de cliente a enviar:', dataToSend);
+            
+            // Enviar datos
+            await fetch(urlWithParams, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(dataToSend)
+            });
+            
+            // Ocultar overlay
+            loadingOverlay.style.display = 'none';
+            
+            // Retornar éxito (no podemos verificar la respuesta en modo no-cors)
+            return { success: true, clientId: idPart };
+        } catch (error) {
+            // Ocultar overlay en caso de error
+            loadingOverlay.style.display = 'none';
+            console.error('Error al insertar cliente:', error);
             throw error;
         }
     }
