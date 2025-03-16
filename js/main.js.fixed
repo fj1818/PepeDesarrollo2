@@ -2517,9 +2517,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Función para llenar el formulario con datos del cliente
         function fillExpedienteForm(expediente) {
-            console.log('Llenando formulario con datos del expediente:', expediente);
+            console.log('Expediente a cargar:', expediente);
             
-            // Función auxiliar para establecer valores de forma segura
+            // Función auxiliar para establecer el valor de un elemento de forma segura
             function setElementValue(id, value) {
                 const element = document.getElementById(id);
                 if (element) {
@@ -2551,108 +2551,83 @@ document.addEventListener('DOMContentLoaded', function() {
                 for (const [value, id] of Object.entries(checkboxIdMap)) {
                     const isChecked = values.some(v => 
                         v.toLowerCase() === value.toLowerCase() || 
-                        v.toLowerCase().includes(value.toLowerCase())
+                        v.includes(value)
                     );
                     console.log(`Verificando ${value} -> ${id}: ${isChecked}`);
                     setCheckboxState(id, isChecked);
                 }
             }
             
-            // Asegurarse de que todos los campos tengan valores predeterminados
-            expediente = {
-                // Información básica
-                'numero-expediente': '',
-                'fecha-registro': new Date().toISOString().split('T')[0],
-                
-                // Información del cliente
-                'numero-cliente': '',
-                'nombre-cliente': '',
-                'email-cliente': '',
-                'telefono-cliente': '',
-                
-                // Detalles de entrenamiento
-                'dias-entrenamiento': '',
-                'horas-entrenamiento': '',
-                'nivel': '',
-                
-                // Disciplinas y objetivos
-                'disciplina': '',
-                'objetivo': '',
-                
-                // Medidas físicas
-                'peso-inicial': '',
-                'peso-actual': '',
-                'peso-deseado': '',
-                'grasa-inicial': '',
-                'grasa-actual': '',
-                'grasa-deseada': '',
-                'altura': '',
-                
-                // Salud
-                'condiciones-medicas': '',
-                ...expediente // Sobrescribir con los valores reales del expediente
-            };
-            
             // Llenar campos del formulario con los datos del expediente
             setElementValue('exp-numero-expediente', expediente['numero-expediente']);
             setElementValue('exp-fecha-registro', expediente['fecha-registro']);
-            
-            // Información del cliente
-            setElementValue('exp-numero-cliente', expediente['numero-cliente']);
-            setElementValue('exp-nombre-cliente', expediente['nombre-cliente']);
-            setElementValue('exp-email-cliente', expediente['email-cliente']);
-            setElementValue('exp-telefono-cliente', expediente['telefono-cliente']);
             
             // Detalles de entrenamiento
             setElementValue('exp-dias-entrenamiento', expediente['dias-entrenamiento']);
             setElementValue('exp-horas-entrenamiento', expediente['horas-entrenamiento']);
             setElementValue('exp-nivel', expediente['nivel']);
             
-            // Medidas físicas
+            // Procesar disciplinas (pueden venir como cadena separada por comas)
+            const disciplinaMap = {
+                'Musculación': 'disciplina-musculacion',
+                'Cardio': 'disciplina-cardio',
+                'CrossFit': 'disciplina-crossfit',
+                'Entrenamiento Funcional': 'disciplina-funcional',
+                'Mixto': 'disciplina-mixto'
+            };
+            
+            // Si disciplina es un array o una cadena, procesarlo adecuadamente
+            if (expediente['disciplina']) {
+                processMultipleValues(expediente['disciplina'], disciplinaMap);
+            } else {
+                // Intentar con los campos individuales si están disponibles
+                setCheckboxState('disciplina-musculacion', expediente['musculacion']);
+                setCheckboxState('disciplina-cardio', expediente['cardio']);
+                setCheckboxState('disciplina-crossfit', expediente['crossfit']);
+                setCheckboxState('disciplina-funcional', expediente['entrenamiento-funcional']);
+                setCheckboxState('disciplina-mixto', expediente['entrenamiento-mixto']);
+            }
+            
+            // Medidas y objetivos
             setElementValue('exp-peso-inicial', expediente['peso-inicial']);
-            setElementValue('exp-peso-actual', expediente['peso-actual']);
             setElementValue('exp-peso-deseado', expediente['peso-deseado']);
+            setElementValue('exp-peso-actual', expediente['peso-actual']);
+            
             setElementValue('exp-grasa-inicial', expediente['grasa-inicial']);
-            setElementValue('exp-grasa-actual', expediente['grasa-actual']);
             setElementValue('exp-grasa-deseada', expediente['grasa-deseada']);
-            setElementValue('exp-altura', expediente['altura']);
+            setElementValue('exp-grasa-actual', expediente['grasa-actual']);
+            
+            // Procesar objetivos (pueden venir como cadena separada por comas)
+            const objetivoMap = {
+                'Pérdida de peso': 'objetivo-perdida',
+                'Ganancia muscular': 'objetivo-ganancia',
+                'Tonificación': 'objetivo-tonificacion',
+                'Definición': 'objetivo-definicion',
+                'Mantenimiento': 'objetivo-mantenimiento',
+                'Rendimiento deportivo': 'objetivo-rendimiento'
+            };
+            
+            // Si objetivo es un array o una cadena, procesarlo adecuadamente
+            if (expediente['objetivo']) {
+                processMultipleValues(expediente['objetivo'], objetivoMap);
+            } else {
+                // Intentar con los campos individuales si están disponibles
+                setCheckboxState('objetivo-perdida', expediente['perdida-peso']);
+                setCheckboxState('objetivo-ganancia', expediente['ganancia-muscular']);
+                setCheckboxState('objetivo-tonificacion', expediente['tonificacion']);
+                setCheckboxState('objetivo-definicion', expediente['definicion']);
+                setCheckboxState('objetivo-mantenimiento', expediente['mantenimiento']);
+                setCheckboxState('objetivo-rendimiento', expediente['rendimiento-deportivo']);
+            }
             
             // Condiciones médicas
             setElementValue('exp-condiciones-medicas', expediente['condiciones-medicas']);
             
-            // Mapeo de valores de disciplina a IDs de checkbox
-            const disciplinaMap = {
-                'Musculación': 'disciplina-musculacion',
-                'Cardio': 'disciplina-cardio',
-                'CrossFit': 'disciplina-crossfit'
-            };
+            // Mostrar el formulario
+            expedienteFormContainer.style.display = 'block';
             
-            // Mapeo de valores de objetivo a IDs de checkbox
-            const objetivoMap = {
-                'Pérdida de peso': 'objetivo-perdida',
-                'Ganancia muscular': 'objetivo-ganancia',
-                'Tonificación': 'objetivo-tonificacion'
-            };
-            
-            // Procesar disciplinas (pueden venir como cadena separada por comas)
-            if (typeof expediente['disciplina'] === 'string') {
-                processMultipleValues(expediente['disciplina'], disciplinaMap);
-            } else {
-                // Comprobar propiedades individuales por compatibilidad con versiones anteriores
-                setCheckboxState('disciplina-musculacion', expediente['disciplina-musculacion'] === 'true');
-                setCheckboxState('disciplina-cardio', expediente['disciplina-cardio'] === 'true');
-                setCheckboxState('disciplina-crossfit', expediente['disciplina-crossfit'] === 'true');
-            }
-            
-            // Procesar objetivos (pueden venir como cadena separada por comas)
-            if (typeof expediente['objetivo'] === 'string') {
-                processMultipleValues(expediente['objetivo'], objetivoMap);
-            } else {
-                // Comprobar propiedades individuales por compatibilidad con versiones anteriores
-                setCheckboxState('objetivo-perdida', expediente['objetivo-perdida'] === 'true');
-                setCheckboxState('objetivo-ganancia', expediente['objetivo-ganancia'] === 'true');
-                setCheckboxState('objetivo-tonificacion', expediente['objetivo-tonificacion'] === 'true');
-            }
+            // Hacer scroll hacia el formulario
+            expedienteFormContainer.scrollIntoView({ behavior: 'smooth' });
         }
 
         // Función para generar un ID de expediente único con el formato requerido
