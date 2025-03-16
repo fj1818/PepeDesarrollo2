@@ -1,8 +1,9 @@
 // Variables globales para los datos
 let datosAPI = null;
+let prospectosArray = []; // Declaración global de prospectosArray
 
 // Variable global para la URL de la API
-const API_URL = 'https://script.google.com/macros/s/AKfycbxeU3BNj9_535JZWBZWnNZkzTgRu8T4ngJXWuolJndij_N0yCYbPUvOnkLLPI_pa2eoQw/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbz_-hCw_RDznuQI20gR7Hdx_ll9jeoVBKQyAp8s1LjGhwYBMYNP0T6BBlg91Ee_6zsSJQ/exec';
 
 // Estilo para el botón de actualizar
 const refreshBtnStyle = document.createElement('style');
@@ -40,6 +41,22 @@ refreshBtnStyle.textContent = `
     }
 `;
 document.head.appendChild(refreshBtnStyle);
+
+// Agregamos estilo para centrar correctamente el checkbox
+const checkboxStyle = document.createElement('style');
+checkboxStyle.textContent = `
+    .checkbox-center {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+    }
+    
+    .custom-checkbox {
+        margin: 0;
+    }
+`;
+document.head.appendChild(checkboxStyle);
 
 document.addEventListener('DOMContentLoaded', function() {
     // Referencias a elementos DOM
@@ -524,7 +541,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Variables para paginación
         let currentPage = 1;
         let pageSize = 10;
-        let prospectosArray = [];
         
         // Estructura básica de la tabla de prospectos con barra de búsqueda y botones
         screenContent.innerHTML = `
@@ -789,8 +805,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </td>
                     <td>${fechaFormateada}</td>
-                    <td class="checkbox-container">
-                        <input type="checkbox" class="custom-checkbox" data-field="contactado" ${prospecto.contactado ? 'checked' : ''}>
+                    <td>
+                        <div class="checkbox-center">
+                            <input type="checkbox" class="custom-checkbox" data-field="contactado" ${prospecto.contactado ? 'checked' : ''}>
+                        </div>
                     </td>
                     <td>
                         <select class="interest-select" data-field="interesado">
@@ -978,7 +996,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return Object.values(prospecto).some(value => {
                 // Solo buscar en valores de texto o número
                 if (value && (typeof value === 'string' || typeof value === 'number')) {
-                    return String(value).toLowerCase().includes(searchTerm);
+                    return String(value).toLowerCase().includes(searchTerm.toLowerCase());
                 }
                 return false;
             });
@@ -1039,8 +1057,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </td>
                     <td>${fechaFormateada}</td>
-                    <td class="checkbox-container">
-                        <input type="checkbox" class="custom-checkbox" data-field="contactado" ${prospecto.contactado ? 'checked' : ''}>
+                    <td>
+                        <div class="checkbox-center">
+                            <input type="checkbox" class="custom-checkbox" data-field="contactado" ${prospecto.contactado ? 'checked' : ''}>
+                        </div>
                     </td>
                     <td>
                         <select class="interest-select" data-field="interesado">
@@ -1292,12 +1312,62 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Eventos para los botones
     document.getElementById('saveBtn').addEventListener('click', function() {
-        alert('Datos guardados correctamente.');
-        // Aquí puedes añadir la lógica para guardar los datos
+        // Mostrar overlay de carga durante el guardado
+        loadingOverlay.style.display = 'flex';
+        
+        // Llamar a la función para guardar datos
+        saveDataToAPI()
+            .then(response => {
+                // Ocultar overlay de carga
+                loadingOverlay.style.display = 'none';
+                // Mostrar mensaje de éxito
+                showToast('Datos guardados correctamente');
+            })
+            .catch(error => {
+                // Ocultar overlay de carga
+                loadingOverlay.style.display = 'none';
+                // Mostrar mensaje de error
+                console.error('Error al guardar:', error);
+                showToast('Error al guardar los datos. Por favor, intente nuevamente.');
+            });
     });
 
     document.getElementById('generateClientBtn').addEventListener('click', function() {
         alert('Cliente generado correctamente.');
         // Aquí puedes añadir la lógica para generar un cliente
     });
+    
+    // Función para guardar datos a la API
+    async function saveDataToAPI() {
+        try {
+            // Preparar los datos a enviar (solo enviamos los prospectos que se han editado)
+            const dataToSend = {
+                action: 'updateprospecto', // Indicar acción a realizar en la API
+                data: {
+                    prospecto: datosAPI.prospecto // Enviar la colección completa de prospectos
+                }
+            };
+            
+            // Enviar datos mediante POST a la API
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(dataToSend)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            
+            const responseData = await response.json();
+            console.log('Respuesta de guardado:', responseData);
+            
+            return responseData;
+        } catch (error) {
+            console.error('Error al guardar datos:', error);
+            throw error; // Re-lanzar el error para manejarlo en el llamador
+        }
+    }
 }); 
