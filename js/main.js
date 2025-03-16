@@ -3,7 +3,7 @@ let datosAPI = null;
 let prospectosArray = []; // Declaración global de prospectosArray
 
 // Variable global para la URL de la API - ACTUALIZADA
-const API_URL = 'https://script.google.com/macros/s/AKfycbyl4MKOjZI6gV7qAgbjU2_FabOO4jCL11oQy0CE4ayjS_IpSB7Vxf0E0Hrg1IHMhOhPqg/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwfGB6ZTG0I3tff4o4z6LZG76eML2C4hXJaosGcD88tdfGRdi8YZ2GKpFFUk1V8H-Eb/exec';
 
 // Variable global para rastrear los cambios
 let prospectosModificados = {}; 
@@ -2497,67 +2497,67 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Función para insertar un expediente en la API
         async function insertExpediente(expedienteData) {
-            showToast('Guardando expediente...');
-            console.log('Datos del expediente a guardar:', expedienteData);
+            // Mostrar exactamente qué estamos enviando
+            const payload = {
+                action: 'insertexpediente',
+                data: {
+                    expediente: expedienteData
+                }
+            };
+            
+            console.log('Payload enviado al servidor:');
+            console.log('action:', payload.action);
+            console.log('data.expediente:', payload.data.expediente);
+            console.log('JSON completo:', JSON.stringify(payload));
+            
+            showToast('Intentando guardar expediente...');
             
             try {
-                // Crear objeto con la misma estructura que usa insertCliente
-                const payload = {
-                    action: 'insertexpediente',
-                    data: {
-                        expediente: expedienteData
+                // Para manejar CORS en ambiente de desarrollo (localhost)
+                const isLocalhost = window.location.hostname === 'localhost' || 
+                                   window.location.hostname === '127.0.0.1';
+                
+                if (isLocalhost) {
+                    console.log('Desarrollo local detectado - CORS bloqueará la petición');
+                    console.log('Simulando guardado local');
+                    
+                    // Simular retardo
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    // Actualizar estructura local
+                    if (!datosAPI.expedienteClientes) {
+                        datosAPI.expedienteClientes = {};
                     }
-                };
-                
-                console.log('Payload completo:', payload);
-                
-                // Hacer la petición usando XMLHttpRequest (más compatible con CORS)
-                const response = await new Promise((resolve, reject) => {
-                    const xhr = new XMLHttpRequest();
-                    xhr.open('POST', API_URL, true);
-                    xhr.setRequestHeader('Content-Type', 'application/json');
+                    datosAPI.expedienteClientes[expedienteData['id-expediente']] = expedienteData;
                     
-                    xhr.onload = function() {
-                        if (xhr.status >= 200 && xhr.status < 300) {
-                            let responseData;
-                            try {
-                                responseData = JSON.parse(xhr.responseText);
-                            } catch (e) {
-                                responseData = { result: 'error', message: 'Formato de respuesta inválido' };
-                            }
-                            resolve(responseData);
-                        } else {
-                            reject(new Error(`HTTP Error: ${xhr.status}`));
-                        }
-                    };
-                    
-                    xhr.onerror = function() {
-                        // En desarrollo local, simular éxito
-                        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                            console.log('Error de red (CORS) detectado - simulando éxito en desarrollo');
-                            resolve({ result: 'success', simulated: true });
-                        } else {
-                            reject(new Error('Error de red'));
-                        }
-                    };
-                    
-                    xhr.send(JSON.stringify(payload));
-                });
-                
-                console.log('Respuesta del servidor:', response);
-                
-                if (response.result === 'success' || response.simulated) {
-                    showToast('Expediente guardado correctamente');
+                    showToast('Expediente guardado localmente (simulado)');
                     expedienteFormContainer.style.display = 'none';
                     
-                    // Recargar datos
-                    await fetchDatos();
                     return true;
                 } else {
-                    throw new Error(response.message || 'Error desconocido');
+                    // En producción, hacer petición real
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.result === 'success') {
+                        showToast('Expediente guardado correctamente');
+                        await fetchDatos();
+                        expedienteFormContainer.style.display = 'none';
+                    } else {
+                        throw new Error('Error al guardar: ' + (data.message || 'Error desconocido'));
+                    }
+                    
+                    return true;
                 }
             } catch (error) {
-                console.error('Error al guardar expediente:', error);
+                console.error('Error en insertExpediente:', error);
                 showToast('Error: ' + error.message);
                 return false;
             }
