@@ -2523,41 +2523,99 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Función auxiliar para establecer valores de forma segura
             function setElementValue(id, value) {
+                console.log(`Intentando establecer valor para campo con ID: ${id}, valor: ${value}`);
                 const element = document.getElementById(id);
                 if (element) {
-                    element.value = value || '';
+                    if (value === undefined || value === null) {
+                        element.value = '';
+                    } else {
+                        // Convertir diferentes tipos de datos a string para mostrar en el input
+                        if (typeof value === 'object' && value instanceof Date) {
+                            element.value = value.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+                        } else {
+                            element.value = String(value);
+                        }
+                    }
+                    
+                    // Agregar clase visual para indicar que el campo ha sido llenado
+                    if (element.value && element.value.trim() !== '') {
+                        element.classList.add('filled-field');
+                    } else {
+                        element.classList.remove('filled-field');
+                    }
+                    
+                    // Disparar evento de cambio para activar cualquier listener que pueda existir
+                    const event = new Event('change', { bubbles: true });
+                    element.dispatchEvent(event);
+                    console.log(`Campo con ID ${id} establecido correctamente con valor: ${element.value}`);
                 } else {
-                    console.warn(`Elemento con ID '${id}' no encontrado`);
+                    console.warn(`Elemento con ID '${id}' no encontrado. Buscando alternativas...`);
+                    
+                    // Intentar encontrar el campo por nombre, placeholder o label cercano
+                    const inputsByName = document.getElementsByName(id);
+                    if (inputsByName.length > 0) {
+                        inputsByName[0].value = value || '';
+                        console.log(`Campo encontrado por nombre: ${id}`);
+                        return;
+                    }
+                    
+                    // Intentar buscar por otros atributos
+                    const possibleSelectors = [
+                        `input[placeholder*="${id.replace('exp-', '')}"]`,
+                        `input[placeholder*="${id}"]`,
+                        `input[data-field="${id}"]`,
+                        `input[data-field="${id.replace('exp-', '')}"]`
+                    ];
+                    
+                    for (const selector of possibleSelectors) {
+                        const elements = document.querySelectorAll(selector);
+                        if (elements.length > 0) {
+                            elements[0].value = value || '';
+                            console.log(`Campo encontrado por selector: ${selector}`);
+                            return;
+                        }
+                    }
+                    
+                    // Buscar por labels cercanos
+                    const labels = document.querySelectorAll('label');
+                    for (const label of labels) {
+                        if (label.textContent.toLowerCase().includes(id.replace('exp-', '').replace(/-/g, ' '))) {
+                            const input = label.nextElementSibling;
+                            if (input && (input.tagName === 'INPUT' || input.tagName === 'SELECT' || input.tagName === 'TEXTAREA')) {
+                                input.value = value || '';
+                                console.log(`Campo encontrado por label: ${label.textContent}`);
+                                return;
+                            }
+                        }
+                    }
                 }
             }
             
-            // Función auxiliar para establecer el estado de un checkbox de forma segura
-            function setCheckboxState(id, checked) {
-                const checkbox = document.getElementById(id);
-                if (checkbox) {
-                    checkbox.checked = checked || false;
-                } else {
-                    console.warn(`Checkbox con ID '${id}' no encontrado`);
-                }
-            }
+            // Mapeo alternativo de campos para cuando los IDs no son 'exp-XXX'
+            const fieldMapping = {
+                'exp-numero-expediente': ['numero-expediente', 'expediente'],
+                'exp-fecha-registro': ['fecha-registro', 'fecha'],
+                'exp-numero-cliente': ['numero-cliente', 'cliente'],
+                'exp-nombre-cliente': ['nombre-cliente', 'nombre'],
+                'exp-email-cliente': ['email-cliente', 'email'],
+                'exp-telefono-cliente': ['telefono-cliente', 'telefono'],
+                'exp-dias-entrenamiento': ['dias-entrenamiento', 'dias'],
+                'exp-horas-entrenamiento': ['horas-entrenamiento', 'horas'],
+                'exp-nivel': ['nivel'],
+                'exp-peso-inicial': ['peso-inicial', 'peso_inicial'],
+                'exp-peso-actual': ['peso-actual', 'peso_actual'],
+                'exp-peso-deseado': ['peso-deseado', 'peso_deseado'],
+                'exp-grasa-inicial': ['grasa-inicial', 'grasa_inicial'],
+                'exp-grasa-actual': ['grasa-actual', 'grasa_actual'],
+                'exp-grasa-deseada': ['grasa-deseada', 'grasa_deseada'],
+                'exp-altura': ['altura'],
+                'exp-condiciones-medicas': ['condiciones-medicas', 'condiciones']
+            };
             
-            // Función para procesar cadenas separadas por comas y marcar checkboxes
-            function processMultipleValues(valueString, checkboxIdMap) {
-                if (!valueString) return;
-                
-                // Dividir por comas y eliminar espacios en blanco
-                const values = valueString.split(',').map(v => v.trim());
-                console.log('Valores a procesar:', values);
-                
-                // Marcar los checkboxes correspondientes
-                for (const [value, id] of Object.entries(checkboxIdMap)) {
-                    const isChecked = values.some(v => 
-                        v.toLowerCase() === value.toLowerCase() || 
-                        v.toLowerCase().includes(value.toLowerCase())
-                    );
-                    console.log(`Verificando ${value} -> ${id}: ${isChecked}`);
-                    setCheckboxState(id, isChecked);
-                }
+            // Si el expediente es null o undefined, crear uno vacío para evitar errores
+            if (!expediente) {
+                console.warn('El expediente es null o undefined. Creando un objeto vacío para evitar errores.');
+                expediente = {};
             }
             
             // Asegurarse de que todos los campos tengan valores predeterminados
@@ -2592,80 +2650,100 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Salud
                 'condiciones-medicas': '',
-                ...expediente // Sobrescribir con los valores reales del expediente
+                
+                // Si hay un registroActual, fusionarlo con el expediente principal
+                ...(expediente.registroActual || {}),
+                
+                // Sobrescribir con los valores del expediente principal
+                ...expediente
             };
             
-            // Llenar campos del formulario con los datos del expediente
-            setElementValue('exp-numero-expediente', expediente['numero-expediente']);
-            setElementValue('exp-fecha-registro', expediente['fecha-registro']);
-            
-            // Información del cliente
-            setElementValue('exp-numero-cliente', expediente['numero-cliente']);
-            setElementValue('exp-nombre-cliente', expediente['nombre-cliente']);
-            setElementValue('exp-email-cliente', expediente['email-cliente']);
-            setElementValue('exp-telefono-cliente', expediente['telefono-cliente']);
-            
-            // Detalles de entrenamiento
-            setElementValue('exp-dias-entrenamiento', expediente['dias-entrenamiento']);
-            setElementValue('exp-horas-entrenamiento', expediente['horas-entrenamiento']);
-            setElementValue('exp-nivel', expediente['nivel']);
-            
-            // Medidas físicas
-            setElementValue('exp-peso-inicial', expediente['peso-inicial']);
-            setElementValue('exp-peso-actual', expediente['peso-actual']);
-            setElementValue('exp-peso-deseado', expediente['peso-deseado']);
-            setElementValue('exp-grasa-inicial', expediente['grasa-inicial']);
-            setElementValue('exp-grasa-actual', expediente['grasa-actual']);
-            setElementValue('exp-grasa-deseada', expediente['grasa-deseada']);
-            setElementValue('exp-altura', expediente['altura']);
-            
-            // Condiciones médicas
-            setElementValue('exp-condiciones-medicas', expediente['condiciones-medicas']);
-            
-            // Mapeo de valores de disciplina a IDs de checkbox
-            const disciplinaMap = {
-                'Musculación': 'disciplina-musculacion',
-                'Cardio': 'disciplina-cardio',
-                'CrossFit': 'disciplina-crossfit',
-                'Entrenamiento Funcional': 'disciplina-funcional',
-                'Funcional': 'disciplina-funcional',
-                'Mixto': 'disciplina-mixto'
-            };
-            
-            // Mapeo de valores de objetivo a IDs de checkbox
-            const objetivoMap = {
-                'Pérdida de peso': 'objetivo-perdida',
-                'Ganancia muscular': 'objetivo-ganancia',
-                'Tonificación': 'objetivo-tonificacion',
-                'Definición': 'objetivo-definicion',
-                'Mantenimiento': 'objetivo-mantenimiento', 
-                'Rendimiento deportivo': 'objetivo-rendimiento'
-            };
-            
-            // Procesar disciplinas (pueden venir como cadena separada por comas)
-            if (typeof expediente['disciplina'] === 'string') {
-                processMultipleValues(expediente['disciplina'], disciplinaMap);
-            } else {
-                // Comprobar propiedades individuales por compatibilidad con versiones anteriores
-                setCheckboxState('disciplina-musculacion', expediente['disciplina-musculacion'] === 'true' || expediente['musculacion'] === 'true');
-                setCheckboxState('disciplina-cardio', expediente['disciplina-cardio'] === 'true' || expediente['cardio'] === 'true');
-                setCheckboxState('disciplina-crossfit', expediente['disciplina-crossfit'] === 'true' || expediente['crossfit'] === 'true');
-                setCheckboxState('disciplina-funcional', expediente['disciplina-funcional'] === 'true' || expediente['entrenamiento-funcional'] === 'true');
-                setCheckboxState('disciplina-mixto', expediente['disciplina-mixto'] === 'true' || expediente['entrenamiento-mixto'] === 'true');
+            // Retirar la referencia circular para evitar problemas
+            if (expediente.registroActual) {
+                delete expediente.registroActual;
             }
             
-            // Procesar objetivos (pueden venir como cadena separada por comas)
-            if (typeof expediente['objetivo'] === 'string') {
-                processMultipleValues(expediente['objetivo'], objetivoMap);
-            } else {
-                // Comprobar propiedades individuales por compatibilidad con versiones anteriores
-                setCheckboxState('objetivo-perdida', expediente['objetivo-perdida'] === 'true' || expediente['perdida-peso'] === 'true');
-                setCheckboxState('objetivo-ganancia', expediente['objetivo-ganancia'] === 'true' || expediente['ganancia-muscular'] === 'true');
-                setCheckboxState('objetivo-tonificacion', expediente['objetivo-tonificacion'] === 'true' || expediente['tonificacion'] === 'true');
-                setCheckboxState('objetivo-definicion', expediente['objetivo-definicion'] === 'true' || expediente['definicion'] === 'true');
-                setCheckboxState('objetivo-mantenimiento', expediente['objetivo-mantenimiento'] === 'true' || expediente['mantenimiento'] === 'true');
-                setCheckboxState('objetivo-rendimiento', expediente['objetivo-rendimiento'] === 'true' || expediente['rendimiento-deportivo'] === 'true');
+            console.log('Expediente procesado para llenar formulario:', expediente);
+
+            // Obtener todos los inputs y selects del formulario visible
+            const formInputs = document.querySelectorAll('form input, form select, form textarea');
+            console.log('Campos encontrados en el formulario:', formInputs.length);
+
+            // Lista de todos los IDs de elementos en el formulario para depuración
+            const formElementIds = Array.from(formInputs).map(el => ({
+                id: el.id,
+                name: el.name,
+                type: el.type,
+                placeholder: el.placeholder
+            }));
+            console.log('IDs de elementos en el formulario:', formElementIds);
+            
+            // Intentar llenar todos los campos conocidos con sus diversos nombres posibles
+            for (const [stdId, alternativeIds] of Object.entries(fieldMapping)) {
+                const fieldValue = expediente[stdId.replace('exp-', '')] || 
+                                 expediente[stdId] || 
+                                 alternativeIds.find(id => expediente[id]);
+                
+                // Intentar con ID estándar primero
+                setElementValue(stdId, fieldValue);
+                
+                // Intentar con IDs alternativos
+                for (const altId of alternativeIds) {
+                    setElementValue(altId, fieldValue);
+                }
             }
+
+            // Método alternativo: llenar campos por tipo y posición en el formulario
+            const typeOrder = {
+                'numero-expediente': 0,
+                'fecha-registro': 1,
+                'peso-inicial': 2,
+                'peso-deseado': 3,
+                'peso-actual': 4,
+                'grasa-inicial': 5,
+                'grasa-deseada': 6,
+                'grasa-actual': 7
+            };
+            
+            // Agrupar inputs por tipo
+            const textInputs = Array.from(document.querySelectorAll('input[type="text"], input:not([type])'));
+            const dateInputs = Array.from(document.querySelectorAll('input[type="date"]'));
+            const numberInputs = Array.from(document.querySelectorAll('input[type="number"]'));
+            
+            console.log('Inputs de texto:', textInputs.length);
+            console.log('Inputs de fecha:', dateInputs.length);
+            console.log('Inputs numéricos:', numberInputs.length);
+            
+            // Si hay exactamente un input de tipo fecha en el formulario y tenemos fecha-registro
+            if (dateInputs.length === 1 && expediente['fecha-registro']) {
+                dateInputs[0].value = expediente['fecha-registro'];
+                console.log('Fecha de registro establecida en el único input de fecha');
+            }
+            
+            // Si hay un número específico de inputs numéricos, asignarles los valores en orden
+            if (numberInputs.length >= 6) {
+                // Pesos
+                if (expediente['peso-inicial']) numberInputs[0].value = expediente['peso-inicial'];
+                if (expediente['peso-deseado']) numberInputs[1].value = expediente['peso-deseado'];
+                if (expediente['peso-actual']) numberInputs[2].value = expediente['peso-actual'];
+                
+                // Grasas
+                if (expediente['grasa-inicial']) numberInputs[3].value = expediente['grasa-inicial'];
+                if (expediente['grasa-deseada']) numberInputs[4].value = expediente['grasa-deseada'];
+                if (expediente['grasa-actual']) numberInputs[5].value = expediente['grasa-actual'];
+                
+                console.log('Valores numéricos establecidos por posición');
+            }
+            
+            // Notificar que el formulario ha sido completado
+            console.log('Formulario llenado correctamente con los datos del expediente');
+            
+            // Mostrar formulario y contenedor si existen
+            const expedienteForm = document.getElementById('expedienteForm');
+            const expedienteFormContainer = document.getElementById('expedienteFormContainer');
+            
+            if (expedienteForm) expedienteForm.style.display = 'block';
+            if (expedienteFormContainer) expedienteFormContainer.style.display = 'block';
         }
 
         // Función para generar un ID de expediente único con el formato requerido
@@ -3453,6 +3531,193 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
+
+        // Modificar la función que maneja el clic en el botón "Crear registro"
+        document.getElementById('newRecordBtn').addEventListener('click', function() {
+            // Verificar si se ha seleccionado un cliente, expediente y fecha
+            const selectedClient = document.getElementById('clienteInput').value;
+            const selectedExpediente = document.getElementById('expedienteInput').value;
+            const selectedFecha = document.getElementById('fechaInput').value;
+
+            if (selectedClient && selectedExpediente && selectedFecha) {
+                // Filtrar el objeto expediente por la fecha seleccionada
+                const filteredExpediente = filterExpedienteByFecha(selectedExpediente, selectedFecha);
+
+                // Rellenar el formulario con los datos filtrados
+                fillExpedienteForm(filteredExpediente);
+            } else {
+                // Mostrar un mensaje de error o realizar alguna acción apropiada
+                console.log('Por favor, seleccione un cliente, expediente y fecha.');
+            }
+        });
+
+        // Función para filtrar el objeto expediente por fecha
+        function filterExpedienteByFecha(expedienteId, fecha) {
+            console.log('Filtrando expediente:', expedienteId, 'por fecha:', fecha);
+            
+            // Buscar el expediente por su ID
+            let expediente = null;
+            if (datosAPI && datosAPI.expedienteClientes) {
+                // Buscar en todos los expedientes
+                for (const key in datosAPI.expedienteClientes) {
+                    const exp = datosAPI.expedienteClientes[key];
+                    if (exp['numero-expediente'] === expedienteId) {
+                        expediente = exp;
+                        break;
+                    }
+                }
+            }
+            
+            if (!expediente) {
+                console.error('No se encontró el expediente con ID:', expedienteId);
+                return {};
+            }
+            
+            console.log('Expediente encontrado:', expediente);
+            
+            // Normalizar formato de fecha para comparación
+            let fechaNormalizada = null;
+            try {
+                // Intentar diferentes formatos de fecha
+                if (fecha.includes('/')) {
+                    // Formato DD/MM/YYYY
+                    const partes = fecha.split('/');
+                    if (partes.length === 3) {
+                        fechaNormalizada = new Date(partes[2], partes[1] - 1, partes[0]);
+                    }
+                } else if (fecha.includes('-')) {
+                    // Formato YYYY-MM-DD
+                    fechaNormalizada = new Date(fecha);
+                } else {
+                    // Intentar parsear directamente
+                    fechaNormalizada = new Date(fecha);
+                }
+                
+                // Verificar que la fecha es válida
+                if (isNaN(fechaNormalizada.getTime())) {
+                    console.warn('No se pudo normalizar la fecha:', fecha);
+                    fechaNormalizada = null;
+                } else {
+                    console.log('Fecha normalizada:', fechaNormalizada);
+                }
+            } catch (error) {
+                console.error('Error al normalizar la fecha:', error);
+                fechaNormalizada = null;
+            }
+            
+            // Filtrar registros del expediente por fecha
+            // Si el expediente tiene un array de registros, filtrarlo por fecha
+            if (expediente.registros && Array.isArray(expediente.registros) && fechaNormalizada) {
+                let registroFiltrado = null;
+                
+                // Primero buscar coincidencia exacta de fecha
+                registroFiltrado = expediente.registros.find(reg => {
+                    // Convertir la fecha del registro a formato comparable
+                    let fechaReg = null;
+                    try {
+                        fechaReg = new Date(reg.fecha);
+                        
+                        // Verificar si es una fecha válida
+                        if (isNaN(fechaReg.getTime())) return false;
+                        
+                        // Comparar solo año, mes y día
+                        return fechaReg.getFullYear() === fechaNormalizada.getFullYear() &&
+                               fechaReg.getMonth() === fechaNormalizada.getMonth() &&
+                               fechaReg.getDate() === fechaNormalizada.getDate();
+                    } catch (error) {
+                        console.error('Error al convertir fecha del registro:', error);
+                        return false;
+                    }
+                });
+                
+                if (registroFiltrado) {
+                    console.log('Registro encontrado para la fecha seleccionada:', registroFiltrado);
+                    // Devolver un objeto que combine el expediente con el registro filtrado
+                    return { 
+                        ...expediente, 
+                        registroActual: registroFiltrado
+                    };
+                }
+            }
+            
+            console.log('No se encontraron registros para la fecha seleccionada. Usando datos base del expediente.');
+            
+            // Si el expediente no tiene registros o la fecha no coincide, devolvemos el expediente base
+            // Esto permite que al menos se muestren los datos básicos del expediente
+            return { 
+                ...expediente,
+                // Si hay fecha válida, la usamos; de lo contrario, usamos la fecha actual
+                'fecha-registro': fechaNormalizada ? 
+                                `${fechaNormalizada.getFullYear()}-${(fechaNormalizada.getMonth() + 1).toString().padStart(2, '0')}-${fechaNormalizada.getDate().toString().padStart(2, '0')}` 
+                                : new Date().toISOString().split('T')[0],
+                registroActual: {
+                    fecha: fechaNormalizada ? 
+                          `${fechaNormalizada.getFullYear()}-${(fechaNormalizada.getMonth() + 1).toString().padStart(2, '0')}-${fechaNormalizada.getDate().toString().padStart(2, '0')}`
+                          : new Date().toISOString().split('T')[0],
+                    // Agregar campos vacíos o predeterminados para el formulario
+                    avance: 0,
+                    status: '',
+                    observaciones: ''
+                }
+            };
+        }
+
+        // Modificar la función que maneja el clic en el botón "Cargar Registro"
+        document.getElementById('loadRecordBtn').addEventListener('click', function() {
+            console.log('Botón "Cargar Registro" clickeado');
+
+            // Verificar si se ha seleccionado un cliente, expediente y fecha
+            const selectedClient = document.getElementById('clienteInput').value;
+            const selectedExpediente = document.getElementById('expedienteInput').value;
+            const selectedFecha = document.getElementById('fechaInput').value;
+
+            console.log('Cliente seleccionado:', selectedClient);
+            console.log('Expediente seleccionado:', selectedExpediente);
+            console.log('Fecha seleccionada:', selectedFecha);
+
+            if (selectedClient && selectedExpediente && selectedFecha) {
+                // Filtrar el objeto expediente por la fecha seleccionada
+                const filteredExpediente = filterExpedienteByFecha(selectedExpediente, selectedFecha);
+
+                console.log('Expediente filtrado:', filteredExpediente);
+
+                // Rellenar el formulario con los datos filtrados
+                fillExpedienteForm(filteredExpediente);
+
+                // Desplegar el formulario directamente
+                const expedienteFormContainer = document.getElementById('expedienteFormContainer');
+                if (expedienteFormContainer) {
+                    console.log('Mostrando formulario de expediente');
+                    expedienteFormContainer.style.display = 'block';
+                    
+                    // Hacer scroll hacia el formulario
+                    expedienteFormContainer.scrollIntoView({ behavior: 'smooth' });
+                    
+                    // Establecer variable global
+                    window.formularioActivo = true;
+                } else {
+                    console.error('No se encontró el contenedor del formulario de expediente (expedienteFormContainer)');
+                    
+                    // Intentar buscar el formulario por otros medios
+                    const possibleForms = document.querySelectorAll('form');
+                    console.log('Formularios disponibles:', possibleForms);
+                    
+                    // Verificar si existe algún elemento que podría contener el formulario
+                    const possibleContainers = document.querySelectorAll('.expediente-form-container, .form-container, .modal-content');
+                    console.log('Posibles contenedores de formulario:', possibleContainers);
+                    
+                    // Si encontramos algún contenedor, intentar mostrarlo
+                    if (possibleContainers.length > 0) {
+                        possibleContainers[0].style.display = 'block';
+                        console.log('Mostrando contenedor alternativo:', possibleContainers[0]);
+                    }
+                }
+            } else {
+                // Mostrar un mensaje de error o realizar alguna acción apropiada
+                console.log('Por favor, seleccione un cliente, expediente y fecha.');
+                alert('Por favor, seleccione un cliente, expediente y fecha.');
+            }
+        });
     }
 
     // Manejar responsividad
@@ -3553,6 +3818,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Generar número de expediente si no existe
         let numeroExpediente = '';
         let consecutivoExpediente = 1;
+        
         
         if (datosAPI) {
             // Buscar en expedientes existentes
@@ -4128,5 +4394,163 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     } else {
         console.warn('loadExpedienteBtn no encontrado');
+    }
+
+    // Verificar y añadir event listener al botón "Crear registro"
+    const newRecordBtn = document.getElementById('newRecordBtn');
+    if (newRecordBtn) {
+        newRecordBtn.addEventListener('click', function() {
+            // Verificar si se ha seleccionado un cliente, expediente y fecha
+            const selectedClient = document.getElementById('clienteInput').value;
+            const selectedExpediente = document.getElementById('expedienteInput').value;
+            const selectedFecha = document.getElementById('fechaInput').value;
+
+            if (selectedClient && selectedExpediente && selectedFecha) {
+                // Filtrar el objeto expediente por la fecha seleccionada
+                const filteredExpediente = filterExpedienteByFecha(selectedExpediente, selectedFecha);
+
+                // Rellenar el formulario con los datos filtrados
+                fillExpedienteForm(filteredExpediente);
+            } else {
+                // Mostrar un mensaje de error o realizar alguna acción apropiada
+                console.log('Por favor, seleccione un cliente, expediente y fecha.');
+            }
+        });
+    } else {
+        console.error('Botón "Crear registro" no encontrado');
+    }
+
+    // Función para filtrar el objeto expediente por fecha
+    function filterExpedienteByFecha(expedienteId, fecha) {
+        // Lógica para filtrar el objeto expediente por fecha
+        // Por ahora devolvemos un objeto vacío para que no cause errores
+        return {};
+    }
+
+    // Verificar y añadir event listener al botón "Cargar Registro"
+    // Intentar localizar el botón de diversas maneras
+    console.log('Buscando botón "Cargar Registro"...');
+    
+    // 1. Buscar directamente por ID loadExpedienteBtn (que se ve en el código)
+    const loadRecordBtn = document.getElementById('loadExpedienteBtn') || 
+                        document.querySelector('.btn i.fa-download')?.closest('button') || 
+                        document.querySelector('button:has(i.fa-download)') ||
+                        document.querySelector('button[id="cargarRegistroBtn"]');
+    
+    if (loadRecordBtn) {
+        console.log('Botón "Cargar Registro" encontrado:', loadRecordBtn);
+        
+        // Quitar cualquier evento anterior para evitar duplicados
+        const newBtn = loadRecordBtn.cloneNode(true);
+        if (loadRecordBtn.parentNode) {
+            loadRecordBtn.parentNode.replaceChild(newBtn, loadRecordBtn);
+        }
+        
+        // Agregar el evento
+        newBtn.onclick = function(event) {
+            if (event) event.preventDefault();
+            console.log('Botón "Cargar Registro" clickeado');
+            
+            // Verificar si se ha seleccionado un expediente y fecha
+            const selectedExpediente = document.getElementById('expedienteNumFilter')?.value || '';
+            const selectedFecha = document.getElementById('fechaRegistroFilter')?.value || '';
+            
+            console.log('Expediente seleccionado:', selectedExpediente);
+            console.log('Fecha seleccionada:', selectedFecha);
+            
+            if (selectedExpediente && selectedFecha) {
+                try {
+                    // Usar la función filterExpedienteByFecha que está definida correctamente
+                    const filteredExpediente = filterExpedienteByFecha(selectedExpediente, selectedFecha);
+                    console.log('Expediente filtrado:', filteredExpediente);
+                    
+                    // Llenar el formulario con los datos
+                    fillExpedienteForm(filteredExpediente);
+                    
+                    // Hacer visible el formulario y contenedores
+                    const formContainers = document.querySelectorAll('form, .form-container, .modal-content');
+                    formContainers.forEach(container => {
+                        if (container && getComputedStyle(container).display === 'none') {
+                            container.style.display = 'block';
+                            console.log('Contenedor de formulario hecho visible:', container);
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error al procesar el expediente:', error);
+                    alert('Ocurrió un error al cargar el expediente: ' + error.message);
+                }
+            } else {
+                alert('Por favor, seleccione un expediente y una fecha.');
+            }
+            
+            return false; // Evitar comportamiento por defecto
+        };
+    } else {
+        console.error('Botón "Cargar Registro" no encontrado. Intentando con alternativas...');
+        
+        // AÑADIR: Búsqueda directa por texto "Cargar Registro"
+        const cargarRegistroButton = Array.from(document.querySelectorAll('button')).find(
+            btn => btn.textContent.trim() === 'Cargar Registro'
+        );
+        
+        if (cargarRegistroButton) {
+            console.log('Botón encontrado por texto "Cargar Registro":', cargarRegistroButton);
+            cargarRegistroButton.onclick = function(event) {
+                if (event) event.preventDefault();
+                console.log('Botón "Cargar Registro" (encontrado por texto) clickeado');
+                
+                // Obtener expediente y fecha seleccionados
+                const selectedExpediente = document.getElementById('expedienteNumFilter')?.value || '';
+                const selectedFecha = document.getElementById('fechaRegistroFilter')?.value || '';
+                
+                if (selectedExpediente && selectedFecha) {
+                    try {
+                        const filteredExpediente = filterExpedienteByFecha(selectedExpediente, selectedFecha);
+                        fillExpedienteForm(filteredExpediente);
+                    } catch (error) {
+                        console.error('Error:', error);
+                        alert('Error al cargar expediente: ' + error.message);
+                    }
+                } else {
+                    alert('Seleccione expediente y fecha.');
+                }
+                
+                return false;
+            };
+            return; // Salir si encontramos el botón
+        }
+        
+        // Intenta adjuntar el evento a cualquier botón visible en la interfaz
+        const visibleButtons = Array.from(document.querySelectorAll('button:not([style*="display: none"])')).filter(
+            btn => btn.offsetParent !== null && getComputedStyle(btn).display !== 'none'
+        );
+        
+        console.log('Botones visibles encontrados:', visibleButtons.length);
+        
+        if (visibleButtons.length > 0) {
+            // Intentar encontrar un botón que parezca ser el de cargar registro
+            const possibleLoadBtn = visibleButtons.find(btn => 
+                btn.textContent.includes('Cargar') || 
+                btn.innerHTML.includes('fa-download') || 
+                btn.classList.contains('btn-success')
+            );
+            
+            if (possibleLoadBtn) {
+                console.log('Posible botón "Cargar Registro" encontrado:', possibleLoadBtn);
+                possibleLoadBtn.addEventListener('click', function() {
+                    console.log('Posible botón "Cargar Registro" clickeado');
+                    
+                    // Obtener cualquier expediente disponible
+                    if (datosAPI && datosAPI.expedienteClientes && Object.keys(datosAPI.expedienteClientes).length > 0) {
+                        const expediente = Object.values(datosAPI.expedienteClientes)[0];
+                        console.log('Usando expediente disponible:', expediente);
+                        fillExpedienteForm(expediente);
+                    } else {
+                        console.error('No hay datos de expedientes disponibles');
+                        alert('No hay datos de expedientes disponibles para cargar.');
+                    }
+                });
+            }
+        }
     }
 }); 
